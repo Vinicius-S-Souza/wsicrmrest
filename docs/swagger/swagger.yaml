@@ -1,0 +1,294 @@
+basePath: /
+definitions:
+  models.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      code:
+        type: string
+      datetime:
+        type: integer
+      expires_in:
+        type: integer
+      message:
+        type: string
+      modulos:
+        type: integer
+      scope:
+        type: string
+      token_type:
+        type: string
+    type: object
+  models.WSTestResponse:
+    properties:
+      code:
+        type: string
+      erro:
+        type: string
+      erro2:
+        type: string
+      message:
+        type: string
+      organizadorCnpj:
+        type: string
+      organizadorCodIsga:
+        type: integer
+      organizadorCodigo:
+        type: integer
+      organizadorLojaMatriz:
+        type: integer
+      organizadorNome:
+        type: string
+      versao:
+        type: string
+      versaoData:
+        type: string
+    type: object
+  models.ZenviaMessage:
+    properties:
+      externalId:
+        type: string
+      messageId:
+        type: string
+      to:
+        type: string
+    type: object
+  models.ZenviaMessageStatus:
+    properties:
+      causes:
+        items:
+          $ref: '#/definitions/models.ZenviaStatusCause'
+        type: array
+      code:
+        type: string
+      description:
+        type: string
+    type: object
+  models.ZenviaStatusCause:
+    properties:
+      details:
+        type: string
+      reason:
+        type: string
+    type: object
+  models.ZenviaWebhookRequest:
+    properties:
+      message:
+        $ref: '#/definitions/models.ZenviaMessage'
+      messageStatus:
+        $ref: '#/definitions/models.ZenviaMessageStatus'
+      type:
+        type: string
+    type: object
+  models.ZenviaWebhookResponse:
+    properties:
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: Basic authentication with client_id as username and client_secret as
+    password (for token generation only).
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: WSICRMREST API
+  version: 1.26.4.27
+paths:
+  /connect/v1/token:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Generates a JWT access token based on client_id and client_secret provided via Basic Auth
+
+        **Security Features:**
+        - Client secret comparison uses constant-time algorithm (prevents timing attacks)
+        - Rate limiting applied (default: 60 requests/minute)
+        - All attempts are logged in WSAPLLOGTOKEN table
+        - Failed attempts logged with error details
+
+        **Response Headers:**
+        - X-RateLimit-Limit-Minute: Maximum requests per minute
+        - X-RateLimit-Limit-Hour: Maximum requests per hour
+        - X-RateLimit-Remaining-Minute: Remaining requests this minute
+        - X-RateLimit-Remaining-Hour: Remaining requests this hour
+
+        **Example:**
+        ```bash
+        curl -X GET "https://api.example.com/connect/v1/token" -H "Authorization: Basic $(echo -n 'client_id:client_secret' | base64)" -H "Grant_type: client_credentials"
+        ```
+      parameters:
+      - description: Basic Auth (Base64 encoded client_id:client_secret)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Must be 'client_credentials'
+        in: header
+        name: Grant_type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Token generated successfully
+          schema:
+            $ref: '#/definitions/models.TokenResponse'
+        "401":
+          description: Invalid credentials or grant type
+          schema:
+            $ref: '#/definitions/models.TokenResponse'
+        "403":
+          description: Database connection error
+          schema:
+            $ref: '#/definitions/models.TokenResponse'
+        "409":
+          description: Invalid client_id or disabled application
+          schema:
+            $ref: '#/definitions/models.TokenResponse'
+        "429":
+          description: Rate limit exceeded
+          schema:
+            type: object
+        "500":
+          description: Error generating token
+          schema:
+            $ref: '#/definitions/models.TokenResponse'
+      security:
+      - BasicAuth: []
+      summary: Generate JWT token
+      tags:
+      - Authentication
+  /connect/v1/wsteste:
+    get:
+      consumes:
+      - application/json
+      description: Tests the database connection and returns organization information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Connection successful
+          schema:
+            $ref: '#/definitions/models.WSTestResponse'
+        "403":
+          description: Database connection failed
+          schema:
+            $ref: '#/definitions/models.WSTestResponse'
+      summary: Test database connection
+      tags:
+      - System
+  /webhook/zenvia/email:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Processes email status events received from Zenvia webhook. Updates email status, logs API history, and creates occurrences for bounced emails.
+
+        **Behavior for Unknown Message IDs:**
+        - Returns HTTP 200 with success=true (prevents Zenvia retries)
+        - Logs warning with messageId and error details
+        - Stores webhook request in WSREQUISICOES table for audit
+        - Message: "Mensagem não encontrada no banco de dados"
+
+        **Supported Events:**
+        - sent (121 - Agendado)
+        - delivered (122 - Entregue)
+        - read/clicked (123 - Aberto)
+        - rejected/not_delivered (124 - Não Entregue)
+
+        **Security:** No authentication required (public webhook endpoint)
+      parameters:
+      - description: Zenvia webhook payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ZenviaWebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Webhook processed successfully (includes cases where message
+            ID is not found)
+          schema:
+            $ref: '#/definitions/models.ZenviaWebhookResponse'
+        "400":
+          description: Invalid request body or JSON
+          schema:
+            $ref: '#/definitions/models.ZenviaWebhookResponse'
+      summary: Zenvia Email Webhook
+      tags:
+      - Webhooks
+  /webhook/zenvia/sms:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Processes SMS status events received from Zenvia webhook. Updates SMS status, logs API history, and creates occurrences for bounced messages.
+
+        **Behavior for Unknown Message IDs:**
+        - Returns HTTP 200 with success=true (prevents Zenvia retries)
+        - Logs warning with messageId and error details
+        - Stores webhook request in WSREQUISICOES table for audit
+        - Message: "Mensagem não encontrada no banco de dados"
+
+        **Supported Events:**
+        - sent (121 - Agendado)
+        - delivered (122 - Entregue)
+        - read (123 - Aberto)
+        - rejected/not_delivered (124 - Não Entregue)
+
+        **Security:** No authentication required (public webhook endpoint)
+      parameters:
+      - description: Zenvia webhook payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ZenviaWebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Webhook processed successfully (includes cases where message
+            ID is not found)
+          schema:
+            $ref: '#/definitions/models.ZenviaWebhookResponse'
+        "400":
+          description: Invalid request body or JSON
+          schema:
+            $ref: '#/definitions/models.ZenviaWebhookResponse'
+      summary: Zenvia SMS Webhook
+      tags:
+      - Webhooks
+schemes:
+- http
+- https
+securityDefinitions:
+  BasicAuth:
+    type: basic
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
+tags:
+- description: Endpoints for JWT token generation and management
+  name: Authentication
+- description: Endpoints for testing database connectivity and API health
+  name: Testing
+- description: Endpoints for receiving Zenvia webhook events (email and SMS status
+    updates)
+  name: Webhooks
+x-extension-openapi:
+  example: value

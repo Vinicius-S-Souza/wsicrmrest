@@ -1,0 +1,67 @@
+[database]
+; Oracle connection using TNSNAMES
+tns_name = ORCL
+username = wsuser
+password = wspass
+
+[application]
+; Ambiente (development, production)
+environment = production
+
+; Porta do servidor HTTP
+port = 8080
+
+; Diretório de logs
+log_dir = log
+
+; Habilitar gravação de logs no banco de dados
+ws_grava_log_db = true
+
+; Habilitar detalhes adicionais no log
+ws_detalhe_log_api = false
+
+; Timeout de requisição em segundos (padrão: 30)
+request_timeout = 30
+
+[CORS]
+; Origens permitidas separadas por vírgula (deixe vazio para permitir todas - desenvolvimento)
+; Exemplo: AllowedOrigins=https://app.example.com,https://admin.example.com
+AllowedOrigins=
+
+; Métodos HTTP permitidos
+AllowedMethods=GET,POST,PUT,PATCH,DELETE,OPTIONS
+
+; Headers permitidos (aceita tanto grant-type quanto Grant_type)
+AllowedHeaders=Origin,Content-Type,Content-Length,Accept-Encoding,Authorization,Grant_type,X-CSRF-Token
+
+; Permite credenciais (cookies, authorization headers)
+AllowCredentials=true
+
+; Tempo de cache do preflight em segundos (12 horas = 43200)
+MaxAge=43200
+
+[tls]
+; Habilitar HTTPS/TLS (true/false)
+enabled = false
+
+; Caminho do certificado TLS
+cert_file = certs/server.crt
+
+; Caminho da chave privada TLS
+key_file = certs/server.key
+
+; Porta HTTPS (padrão: 8443)
+port = 8443
+
+[security]
+; Tamanho máximo do body em bytes (padrão: 1048576 = 1MB)
+max_body_size = 1048576
+
+; Limite de requests por minuto (0 = desabilitado)
+rate_limit_per_min = 60
+
+; Limite de requests por hora (0 = desabilitado)
+rate_limit_per_hour = 1000
+
+; Habilitar rate limiting (true/false)
+rate_limit_enabled = true

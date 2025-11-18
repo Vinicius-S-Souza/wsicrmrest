@@ -1,0 +1,372 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Basic authentication with client_id as username and client_secret as password (for token generation only).",
+        "title": "WSICRMREST API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "email": "support@example.com"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.26.4.27"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/connect/v1/token": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Generates a JWT access token based on client_id and client_secret provided via Basic Auth\n\n**Security Features:**\n- Client secret comparison uses constant-time algorithm (prevents timing attacks)\n- Rate limiting applied (default: 60 requests/minute)\n- All attempts are logged in WSAPLLOGTOKEN table\n- Failed attempts logged with error details\n\n**Response Headers:**\n- X-RateLimit-Limit-Minute: Maximum requests per minute\n- X-RateLimit-Limit-Hour: Maximum requests per hour\n- X-RateLimit-Remaining-Minute: Remaining requests this minute\n- X-RateLimit-Remaining-Hour: Remaining requests this hour\n\n**Example:**\n```bash\ncurl -X GET \"https://api.example.com/connect/v1/token\" -H \"Authorization: Basic $(echo -n 'client_id:client_secret' | base64)\" -H \"Grant_type: client_credentials\"\n```",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Generate JWT token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Basic Auth (Base64 encoded client_id:client_secret)",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Must be 'client_credentials'",
+                        "name": "Grant_type",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Token generated successfully",
+                        "schema": {
+                            "$ref": "#/definitions/models.TokenResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials or grant type",
+                        "schema": {
+                            "$ref": "#/definitions/models.TokenResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Database connection error",
+                        "schema": {
+                            "$ref": "#/definitions/models.TokenResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Invalid client_id or disabled application",
+                        "schema": {
+                            "$ref": "#/definitions/models.TokenResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "500": {
+                        "description": "Error generating token",
+                        "schema": {
+                            "$ref": "#/definitions/models.TokenResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/connect/v1/wsteste": {
+            "get": {
+                "description": "Tests the database connection and returns organization information",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Test database connection",
+                "responses": {
+                    "200": {
+                        "description": "Connection successful",
+                        "schema": {
+                            "$ref": "#/definitions/models.WSTestResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Database connection failed",
+                        "schema": {
+                            "$ref": "#/definitions/models.WSTestResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/webhook/zenvia/email": {
+            "post": {
+                "description": "Processes email status events received from Zenvia webhook. Updates email status, logs API history, and creates occurrences for bounced emails.\n\n**Behavior for Unknown Message IDs:**\n- Returns HTTP 200 with success=true (prevents Zenvia retries)\n- Logs warning with messageId and error details\n- Stores webhook request in WSREQUISICOES table for audit\n- Message: \"Mensagem não encontrada no banco de dados\"\n\n**Supported Events:**\n- sent (121 - Agendado)\n- delivered (122 - Entregue)\n- read/clicked (123 - Aberto)\n- rejected/not_delivered (124 - Não Entregue)\n\n**Security:** No authentication required (public webhook endpoint)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Webhooks"
+                ],
+                "summary": "Zenvia Email Webhook",
+                "parameters": [
+                    {
+                        "description": "Zenvia webhook payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ZenviaWebhookRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Webhook processed successfully (includes cases where message ID is not found)",
+                        "schema": {
+                            "$ref": "#/definitions/models.ZenviaWebhookResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body or JSON",
+                        "schema": {
+                            "$ref": "#/definitions/models.ZenviaWebhookResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/webhook/zenvia/sms": {
+            "post": {
+                "description": "Processes SMS status events received from Zenvia webhook. Updates SMS status, logs API history, and creates occurrences for bounced messages.\n\n**Behavior for Unknown Message IDs:**\n- Returns HTTP 200 with success=true (prevents Zenvia retries)\n- Logs warning with messageId and error details\n- Stores webhook request in WSREQUISICOES table for audit\n- Message: \"Mensagem não encontrada no banco de dados\"\n\n**Supported Events:**\n- sent (121 - Agendado)\n- delivered (122 - Entregue)\n- read (123 - Aberto)\n- rejected/not_delivered (124 - Não Entregue)\n\n**Security:** No authentication required (public webhook endpoint)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Webhooks"
+                ],
+                "summary": "Zenvia SMS Webhook",
+                "parameters": [
+                    {
+                        "description": "Zenvia webhook payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ZenviaWebhookRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Webhook processed successfully (includes cases where message ID is not found)",
+                        "schema": {
+                            "$ref": "#/definitions/models.ZenviaWebhookResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body or JSON",
+                        "schema": {
+                            "$ref": "#/definitions/models.ZenviaWebhookResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "models.TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "datetime": {
+                    "type": "integer"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "modulos": {
+                    "type": "integer"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.WSTestResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "erro": {
+                    "type": "string"
+                },
+                "erro2": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "organizadorCnpj": {
+                    "type": "string"
+                },
+                "organizadorCodIsga": {
+                    "type": "integer"
+                },
+                "organizadorCodigo": {
+                    "type": "integer"
+                },
+                "organizadorLojaMatriz": {
+                    "type": "integer"
+                },
+                "organizadorNome": {
+                    "type": "string"
+                },
+                "versao": {
+                    "type": "string"
+                },
+                "versaoData": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ZenviaMessage": {
+            "type": "object",
+            "properties": {
+                "externalId": {
+                    "type": "string"
+                },
+                "messageId": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ZenviaMessageStatus": {
+            "type": "object",
+            "properties": {
+                "causes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ZenviaStatusCause"
+                    }
+                },
+                "code": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ZenviaStatusCause": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ZenviaWebhookRequest": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "$ref": "#/definitions/models.ZenviaMessage"
+                },
+                "messageStatus": {
+                    "$ref": "#/definitions/models.ZenviaMessageStatus"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ZenviaWebhookResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BasicAuth": {
+            "type": "basic"
+        },
+        "BearerAuth": {
+            "description": "Type \"Bearer\" followed by a space and JWT token.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    },
+    "tags": [
+        {
+            "description": "Endpoints for JWT token generation and management",
+            "name": "Authentication"
+        },
+        {
+            "description": "Endpoints for testing database connectivity and API health",
+            "name": "Testing"
+        },
+        {
+            "description": "Endpoints for receiving Zenvia webhook events (email and SMS status updates)",
+            "name": "Webhooks"
+        }
+    ],
+    "x-extension-openapi": {
+        "example": "value"
+    }
+}

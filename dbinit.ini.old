@@ -1,0 +1,24 @@
+[database]
+; Driver: 1=SQL Server, 2=Oracle
+driver = 2
+
+; Oracle connection using TNSNAMES
+tns_name = ORALINUXCRM
+username = CRMCARONE
+password = sql123
+
+[application]
+; Ambiente (development, production)
+environment = production
+
+; Porta do servidor
+port = 8080
+
+; Diretório de logs
+log_dir = log
+
+; Habilitar gravação de logs no banco de dados
+ws_grava_log_db = true
+
+; Habilitar detalhes adicionais no log
+ws_detalhe_log_api = false

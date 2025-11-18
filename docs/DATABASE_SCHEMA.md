@@ -1,0 +1,326 @@
+# Estrutura do Banco de Dados
+
+## Tabelas Necessárias
+
+### 1. WSAPLICACOES
+Tabela que armazena as aplicações registradas no sistema.
+
+```sql
+CREATE TABLE WSAPLICACOES (
+    WSAPLCLIENTID     VARCHAR2(100) PRIMARY KEY,
+    WSAPLCLIENTSECRET VARCHAR2(200) NOT NULL,
+    WSAPLIJWTEXPIRACAO NUMBER DEFAULT 86400,  -- Tempo em segundos
+    WSAPLSCOPO        NUMBER DEFAULT 1,       -- Código bitwise dos escopos
+    WSAPLSTATUS       NUMBER(1) DEFAULT 1,    -- 1=Ativo, 0=Inativo
+    WSAPLNOME         VARCHAR2(200) NOT NULL
+);
+
+-- Exemplo de insert
+INSERT INTO WSAPLICACOES (WSAPLCLIENTID, WSAPLCLIENTSECRET, WSAPLIJWTEXPIRACAO, WSAPLSCOPO, WSAPLSTATUS, WSAPLNOME)
+VALUES ('CLIENTE1234567890', 'a1234567890b', 86400, 1, 1, 'Aplicacao Teste');
+```
+
+**Campos:**
+- `WSAPLCLIENTID`: ID único do cliente (usado na autenticação)
+- `WSAPLCLIENTSECRET`: Senha secreta do cliente
+- `WSAPLIJWTEXPIRACAO`: Tempo de expiração do JWT em segundos (padrão: 86400 = 24h)
+- `WSAPLSCOPO`: Código bitwise dos escopos permitidos
+- `WSAPLSTATUS`: Status da aplicação (1=Ativo, 0=Inativo)
+- `WSAPLNOME`: Nome da aplicação
+
+**Escopos (bitwise):**
+- Bit 1 (1): clientes
+- Bit 2 (2): lojas
+- Bit 3 (4): ofertas
+- Bit 4 (8): produtos
+- Bit 5 (16): pontos
+- Bit 6 (32): private
+- Bit 7 (64): convenio
+- Bit 8 (128): giftcard
+- Bit 9 (256): cobranca
+- Bit 10 (512): basico
+- Bit 11 (1024): sistema
+- Bit 12 (2048): terceiros
+- Bit 13 (4096): totem
+
+**Exemplo:** Para permitir "clientes" + "produtos" = 1 + 8 = 9
+
+---
+
+### 2. WSAPLLOGTOKEN
+Tabela que armazena o log de tokens gerados.
+
+```sql
+CREATE SEQUENCE SEQ_WSLTKNUMERO START WITH 1 INCREMENT BY 1;
+
+CREATE TABLE WSAPLLOGTOKEN (
+    WSLTKNUMERO     NUMBER PRIMARY KEY,
+    WSLTKDATA       TIMESTAMP NOT NULL,
+    WSLTKEXPIRACAO  TIMESTAMP NOT NULL,
+    WSAPLCLIENTID   VARCHAR2(100) NOT NULL,
+    WSAPLTOKEN      VARCHAR2(2000) NOT NULL,
+    WSAPLHOST       VARCHAR2(200)
+);
+
+-- Índices recomendados
+CREATE INDEX IDX_WSAPLLOGTOKEN_CLIENTID ON WSAPLLOGTOKEN(WSAPLCLIENTID);
+CREATE INDEX IDX_WSAPLLOGTOKEN_DATA ON WSAPLLOGTOKEN(WSLTKDATA);
+```
+
+**Campos:**
+- `WSLTKNUMERO`: Número sequencial único
+- `WSLTKDATA`: Data/hora de geração do token
+- `WSLTKEXPIRACAO`: Data/hora de expiração do token
+- `WSAPLCLIENTID`: ID do cliente que gerou o token
+- `WSAPLTOKEN`: Token JWT completo
+- `WSAPLHOST`: Host da requisição
+
+---
+
+### 3. WSREQUISICOES
+Tabela que armazena o log de todas as requisições.
+
+```sql
+CREATE TABLE WSREQUISICOES (
+    WSREQUUID         VARCHAR2(36) PRIMARY KEY,
+    WSREQDTARECEBE    TIMESTAMP NOT NULL,
+    WSREQIPCLIENTE    VARCHAR2(50),
+    WSREQENDPOINT     VARCHAR2(200) NOT NULL,
+    WSREQMETODO       VARCHAR2(10) NOT NULL,
+    WSREQHEADER       CLOB,
+    WSREQPARAMETROS   CLOB,
+    WSREQDTARESPOSTA  TIMESTAMP NOT NULL,
+    WSREQCODRESPOSTA  NUMBER NOT NULL,
+    WSREQRESPOSTA     CLOB,
+    WSREQDURACAO      NUMBER,  -- Em milissegundos
+    WSREQPROCEDURE    VARCHAR2(200),
+    WSAPLNOME         VARCHAR2(200),
+    WSAPLCLIENTID     VARCHAR2(100),
+    WSVERSAO          VARCHAR2(50),
+    WSLOGDETALHE      CLOB  -- Opcional: detalhes adicionais do log
+);
+
+-- Índices recomendados
+CREATE INDEX IDX_WSREQUISICOES_DATA ON WSREQUISICOES(WSREQDTARECEBE);
+CREATE INDEX IDX_WSREQUISICOES_ENDPOINT ON WSREQUISICOES(WSREQENDPOINT);
+CREATE INDEX IDX_WSREQUISICOES_CLIENTID ON WSREQUISICOES(WSAPLCLIENTID);
+CREATE INDEX IDX_WSREQUISICOES_CODRESP ON WSREQUISICOES(WSREQCODRESPOSTA);
+```
+
+**Campos:**
+- `WSREQUUID`: UUID único da requisição
+- `WSREQDTARECEBE`: Data/hora de recebimento da requisição
+- `WSREQIPCLIENTE`: IP do cliente
+- `WSREQENDPOINT`: Endpoint chamado
+- `WSREQMETODO`: Método HTTP (GET, POST, etc)
+- `WSREQHEADER`: Headers da requisição (exceto Authorization)
+- `WSREQPARAMETROS`: Parâmetros enviados
+- `WSREQDTARESPOSTA`: Data/hora da resposta
+- `WSREQCODRESPOSTA`: Código HTTP de resposta
+- `WSREQRESPOSTA`: Body da resposta
+- `WSREQDURACAO`: Tempo de processamento em milissegundos
+- `WSREQPROCEDURE`: Nome da procedure/handler
+- `WSAPLNOME`: Nome da aplicação que fez a requisição
+- `WSAPLCLIENTID`: Client ID da aplicação
+- `WSVERSAO`: Versão do webservice
+- `WSLOGDETALHE`: Detalhes adicionais (opcional)
+
+---
+
+### 4. ORGANIZADOR
+Tabela que armazena os dados da organização.
+
+```sql
+CREATE TABLE ORGANIZADOR (
+    ORGCODIGO                  NUMBER PRIMARY KEY,
+    ORGNOME                    VARCHAR2(200) NOT NULL,
+    ORGCNPJ                    VARCHAR2(20),
+    ORGCODLOJAMATRIZ           NUMBER,
+    ORGFORMALIMITE             NUMBER DEFAULT 0,
+    ORGCALCDISPFUTUROCARTAO    NUMBER DEFAULT 0,
+    ORGCALCDISPFUTUROCONVENIO  NUMBER DEFAULT 0,
+    ORGCODISGA                 NUMBER,
+    ORGDIAFATGRUPO1            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO2            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO3            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO4            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO5            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO6            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO1            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO2            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO3            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO4            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO5            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO6            NUMBER DEFAULT 0
+);
+
+-- Exemplo de insert
+INSERT INTO ORGANIZADOR (ORGCODIGO, ORGNOME, ORGCNPJ, ORGCODLOJAMATRIZ, ORGCODISGA)
+VALUES (1, 'Minha Empresa', '12345678000199', 1, 1001);
+```
+
+**Campos:**
+- `ORGCODIGO`: Código único da organização
+- `ORGNOME`: Nome da organização
+- `ORGCNPJ`: CNPJ da organização
+- `ORGCODLOJAMATRIZ`: Código da loja matriz
+- `ORGFORMALIMITE`: Forma de cálculo do limite
+- `ORGCALCDISPFUTUROCARTAO`: Cálculo disponível futuro cartão
+- `ORGCALCDISPFUTUROCONVENIO`: Cálculo disponível futuro convênio
+- `ORGCODISGA`: Código ISGA
+- `ORGDIAFATGRUPO1-6`: Dia de vencimento por grupo (1 a 6)
+- `ORGDIACORGRUPO1-6`: Dia de corte por grupo (1 a 6)
+
+**⚠️ OBRIGATÓRIO:**
+- Esta tabela **DEVE** existir para o sistema funcionar
+- É carregada automaticamente na inicialização via `pgLeOrganizador()`
+- **DEVE** existir pelo menos um registro com `ORGCODIGO > 0`
+- Se não existir ou estiver vazia, o sistema **NÃO INICIA**
+- Dados de organização **NÃO** vêm do `dbinit.ini`
+
+---
+
+## Script Completo de Criação
+
+```sql
+-- Criar sequence para log de tokens
+CREATE SEQUENCE SEQ_WSLTKNUMERO START WITH 1 INCREMENT BY 1;
+
+-- Tabela do organizador (organização)
+CREATE TABLE ORGANIZADOR (
+    ORGCODIGO                  NUMBER PRIMARY KEY,
+    ORGNOME                    VARCHAR2(200) NOT NULL,
+    ORGCNPJ                    VARCHAR2(20),
+    ORGCODLOJAMATRIZ           NUMBER,
+    ORGFORMALIMITE             NUMBER DEFAULT 0,
+    ORGCALCDISPFUTUROCARTAO    NUMBER DEFAULT 0,
+    ORGCALCDISPFUTUROCONVENIO  NUMBER DEFAULT 0,
+    ORGCODISGA                 NUMBER,
+    ORGDIAFATGRUPO1            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO2            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO3            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO4            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO5            NUMBER DEFAULT 0,
+    ORGDIAFATGRUPO6            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO1            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO2            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO3            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO4            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO5            NUMBER DEFAULT 0,
+    ORGDIACORGRUPO6            NUMBER DEFAULT 0
+);
+
+-- Tabela de aplicações
+CREATE TABLE WSAPLICACOES (
+    WSAPLCLIENTID     VARCHAR2(100) PRIMARY KEY,
+    WSAPLCLIENTSECRET VARCHAR2(200) NOT NULL,
+    WSAPLIJWTEXPIRACAO NUMBER DEFAULT 86400,
+    WSAPLSCOPO        NUMBER DEFAULT 1,
+    WSAPLSTATUS       NUMBER(1) DEFAULT 1,
+    WSAPLNOME         VARCHAR2(200) NOT NULL
+);
+
+-- Tabela de log de tokens
+CREATE TABLE WSAPLLOGTOKEN (
+    WSLTKNUMERO     NUMBER PRIMARY KEY,
+    WSLTKDATA       TIMESTAMP NOT NULL,
+    WSLTKEXPIRACAO  TIMESTAMP NOT NULL,
+    WSAPLCLIENTID   VARCHAR2(100) NOT NULL,
+    WSAPLTOKEN      VARCHAR2(2000) NOT NULL,
+    WSAPLHOST       VARCHAR2(200)
+);
+
+-- Tabela de log de requisições
+CREATE TABLE WSREQUISICOES (
+    WSREQUUID         VARCHAR2(36) PRIMARY KEY,
+    WSREQDTARECEBE    TIMESTAMP NOT NULL,
+    WSREQIPCLIENTE    VARCHAR2(50),
+    WSREQENDPOINT     VARCHAR2(200) NOT NULL,
+    WSREQMETODO       VARCHAR2(10) NOT NULL,
+    WSREQHEADER       CLOB,
+    WSREQPARAMETROS   CLOB,
+    WSREQDTARESPOSTA  TIMESTAMP NOT NULL,
+    WSREQCODRESPOSTA  NUMBER NOT NULL,
+    WSREQRESPOSTA     CLOB,
+    WSREQDURACAO      NUMBER,
+    WSREQPROCEDURE    VARCHAR2(200),
+    WSAPLNOME         VARCHAR2(200),
+    WSAPLCLIENTID     VARCHAR2(100),
+    WSVERSAO          VARCHAR2(50),
+    WSLOGDETALHE      CLOB
+);
+
+-- Índices
+CREATE INDEX IDX_WSAPLLOGTOKEN_CLIENTID ON WSAPLLOGTOKEN(WSAPLCLIENTID);
+CREATE INDEX IDX_WSAPLLOGTOKEN_DATA ON WSAPLLOGTOKEN(WSLTKDATA);
+CREATE INDEX IDX_WSREQUISICOES_DATA ON WSREQUISICOES(WSREQDTARECEBE);
+CREATE INDEX IDX_WSREQUISICOES_ENDPOINT ON WSREQUISICOES(WSREQENDPOINT);
+CREATE INDEX IDX_WSREQUISICOES_CLIENTID ON WSREQUISICOES(WSAPLCLIENTID);
+CREATE INDEX IDX_WSREQUISICOES_CODRESP ON WSREQUISICOES(WSREQCODRESPOSTA);
+
+-- Dados de exemplo
+
+-- Organizador (obrigatório - pelo menos um registro)
+INSERT INTO ORGANIZADOR (ORGCODIGO, ORGNOME, ORGCNPJ, ORGCODLOJAMATRIZ, ORGCODISGA)
+VALUES (1, 'Minha Empresa', '12345678000199', 1, 1001);
+
+-- Aplicação de teste
+INSERT INTO WSAPLICACOES (WSAPLCLIENTID, WSAPLCLIENTSECRET, WSAPLIJWTEXPIRACAO, WSAPLSCOPO, WSAPLSTATUS, WSAPLNOME)
+VALUES ('CLIENTE1234567890', 'a1234567890b', 86400, 1, 1, 'Aplicacao Teste');
+
+COMMIT;
+```
+
+## Manutenção e Monitoramento
+
+### Consultas Úteis
+
+**Verificar tokens ativos:**
+```sql
+SELECT WSAPLCLIENTID, WSLTKDATA, WSLTKEXPIRACAO
+FROM WSAPLLOGTOKEN
+WHERE WSLTKEXPIRACAO > SYSTIMESTAMP
+ORDER BY WSLTKDATA DESC;
+```
+
+**Estatísticas de uso por aplicação:**
+```sql
+SELECT
+    WSAPLCLIENTID,
+    WSAPLNOME,
+    COUNT(*) AS TOTAL_REQUISICOES,
+    AVG(WSREQDURACAO) AS DURACAO_MEDIA_MS,
+    MIN(WSREQDTARECEBE) AS PRIMEIRA_REQ,
+    MAX(WSREQDTARECEBE) AS ULTIMA_REQ
+FROM WSREQUISICOES
+WHERE WSREQDTARECEBE > TRUNC(SYSDATE) - 7  -- Últimos 7 dias
+GROUP BY WSAPLCLIENTID, WSAPLNOME
+ORDER BY TOTAL_REQUISICOES DESC;
+```
+
+**Requisições com erro:**
+```sql
+SELECT
+    WSREQDTARECEBE,
+    WSREQENDPOINT,
+    WSAPLCLIENTID,
+    WSREQCODRESPOSTA,
+    WSREQRESPOSTA
+FROM WSREQUISICOES
+WHERE WSREQCODRESPOSTA >= 400
+ORDER BY WSREQDTARECEBE DESC
+FETCH FIRST 50 ROWS ONLY;
+```
+
+**Limpeza de logs antigos (executar periodicamente):**
+```sql
+-- Remover logs de requisições com mais de 90 dias
+DELETE FROM WSREQUISICOES
+WHERE WSREQDTARECEBE < TRUNC(SYSDATE) - 90;
+
+-- Remover tokens expirados há mais de 30 dias
+DELETE FROM WSAPLLOGTOKEN
+WHERE WSLTKEXPIRACAO < TRUNC(SYSDATE) - 30;
+
+COMMIT;
+```
