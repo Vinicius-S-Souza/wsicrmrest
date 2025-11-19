@@ -54,7 +54,7 @@ func ZenviaEmailWebhook(cfg *config.Config, db *database.Database, logger *zap.S
 
 		// Log inicial
 		logger.Infow("====================================================================================================")
-		logger.Infow("Iniciando tratamento de mensagem recebida pelo WebHookZenvia")
+		logger.Infow("Iniciando tratamento de mensagem recebida pelo WebHookZenvia Email")
 		logger.Infow("====================================================================================================")
 
 		// Ler o body
@@ -143,7 +143,7 @@ func ZenviaEmailWebhook(cfg *config.Config, db *database.Database, logger *zap.S
 				"tipo", tipoCallback,
 				"esperado", "message_status")
 
-			logger.Infow("Encerrando tratamento de mensagem recebida pelo WebHookZenvia: tipo de mensagem inválida",
+			logger.Infow("Encerrando tratamento de mensagem recebida pelo WebHookZenvia Email: tipo de mensagem inválida",
 				"tipo", tipoCallback)
 			logger.Infow("====================================================================================================")
 
@@ -270,7 +270,7 @@ func ZenviaEmailWebhook(cfg *config.Config, db *database.Database, logger *zap.S
 				"evento", sEvento,
 				"descricao", sDescricaoEvento)
 
-			logger.Infow("Encerrando tratamento de mensagem recebida pelo WebHookZenvia: Status fora do escopo")
+			logger.Infow("Encerrando tratamento de mensagem recebida pelo WebHookZenvia Email: Status fora do escopo")
 			logger.Infow("====================================================================================================")
 
 			response := models.ZenviaWebhookResponse{
@@ -401,7 +401,7 @@ func ZenviaEmailWebhook(cfg *config.Config, db *database.Database, logger *zap.S
 			"status", nLogsApiStatus,
 			"tag", sLogsApiTag)
 
-		logger.Infow("Finalizando tratamento de mensagem recebida pelo WebHookZenvia")
+		logger.Infow("Finalizando tratamento de mensagem recebida pelo WebHookZenvia Email")
 		logger.Infow("====================================================================================================")
 
 		response := models.ZenviaWebhookResponse{
