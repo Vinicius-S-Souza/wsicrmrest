@@ -93,54 +93,69 @@ REM Se não escolheu nada, usar auto-detect
 if "%CHOICE%"=="" set CHOICE=A
 
 REM Processar escolha
-if /i "%CHOICE%"=="A" (
-    REM Auto-detect baseado na arquitetura
-    if %ARCH%==32 (
-        if %HAS_32%==1 (
-            set BINARY_PATH=%EXE_32%
-            set SELECTED_ARCH=32 bits (auto)
-        ) else if %HAS_64%==1 (
-            echo.
-            echo AVISO: Sistema 32 bits, mas apenas executável 64 bits disponível.
-            echo Usando wsicrmrest_win64.exe (pode não funcionar em Windows 32 bits)
-            set BINARY_PATH=%EXE_64%
-            set SELECTED_ARCH=64 bits (fallback)
-        )
-    ) else (
-        if %HAS_64%==1 (
-            set BINARY_PATH=%EXE_64%
-            set SELECTED_ARCH=64 bits (auto)
-        ) else if %HAS_32%==1 (
-            echo.
-            echo AVISO: Usando executável 32 bits em sistema 64 bits.
-            echo Recomenda-se compilar versão 64 bits para melhor desempenho.
-            set BINARY_PATH=%EXE_32%
-            set SELECTED_ARCH=32 bits (fallback)
-        )
-    )
-) else if "%CHOICE%"=="1" (
+if /i "%CHOICE%"=="A" goto AUTO_DETECT
+if "%CHOICE%"=="1" goto SELECT_32
+if "%CHOICE%"=="2" goto SELECT_64
+echo ERRO: Escolha inválida!
+pause
+exit /b 1
+
+:AUTO_DETECT
+REM Auto-detect baseado na arquitetura
+if %ARCH%==32 (
     if %HAS_32%==1 (
         set BINARY_PATH=%EXE_32%
-        set SELECTED_ARCH=32 bits (manual)
-    ) else (
-        echo ERRO: wsicrmrest_win32.exe não encontrado!
-        pause
-        exit /b 1
+        set SELECTED_ARCH=32 bits (auto)
+        goto SELECTION_DONE
     )
-) else if "%CHOICE%"=="2" (
     if %HAS_64%==1 (
+        echo.
+        echo AVISO: Sistema 32 bits, mas apenas executável 64 bits disponível.
+        echo Usando wsicrmrest_win64.exe (pode não funcionar em Windows 32 bits)
         set BINARY_PATH=%EXE_64%
-        set SELECTED_ARCH=64 bits (manual)
-    ) else (
-        echo ERRO: wsicrmrest_win64.exe não encontrado!
-        pause
-        exit /b 1
+        set SELECTED_ARCH=64 bits (fallback)
+        goto SELECTION_DONE
     )
-) else (
-    echo ERRO: Escolha inválida!
-    pause
-    exit /b 1
 )
+REM Sistema 64 bits
+if %HAS_64%==1 (
+    set BINARY_PATH=%EXE_64%
+    set SELECTED_ARCH=64 bits (auto)
+    goto SELECTION_DONE
+)
+if %HAS_32%==1 (
+    echo.
+    echo AVISO: Usando executável 32 bits em sistema 64 bits.
+    echo Recomenda-se compilar versão 64 bits para melhor desempenho.
+    set BINARY_PATH=%EXE_32%
+    set SELECTED_ARCH=32 bits (fallback)
+    goto SELECTION_DONE
+)
+goto SELECTION_DONE
+
+:SELECT_32
+if %HAS_32%==1 (
+    set BINARY_PATH=%EXE_32%
+    set SELECTED_ARCH=32 bits (manual)
+    goto SELECTION_DONE
+)
+echo.
+echo ERRO: wsicrmrest_win32.exe não encontrado!
+pause
+exit /b 1
+
+:SELECT_64
+if %HAS_64%==1 (
+    set BINARY_PATH=%EXE_64%
+    set SELECTED_ARCH=64 bits (manual)
+    goto SELECTION_DONE
+)
+echo.
+echo ERRO: wsicrmrest_win64.exe não encontrado!
+pause
+exit /b 1
+
+:SELECTION_DONE
 
 echo.
 echo ============================================
