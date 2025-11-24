@@ -1,5 +1,49 @@
 # Changelog - WSICRMREST
 
+## [1.26.4.28] - 2025-11-24
+
+### 🔧 Corrigido
+
+#### Windows Service Support
+- ✅ **CRÍTICO**: Implementado suporte adequado para Windows Service API
+- ✅ Resolvido erro 1053 ("O serviço não respondeu à requisição de início ou controle em tempo hábil")
+- ✅ Detecção automática de modo de execução (Console vs Service)
+- ✅ Implementação da interface `svc.Handler` para responder ao Service Control Manager
+- ✅ Integração com Windows Event Log para registro de eventos do serviço
+- ✅ Graceful shutdown quando recebe comandos STOP/SHUTDOWN do Windows
+- ✅ Scripts de instalação/desinstalação atualizados com registro de Event Log
+- ✅ **Mudança automática de diretório de trabalho** para o diretório do executável
+  - Corrige problema de `dbinit.ini` não encontrado
+  - Serviços Windows iniciam em `C:\Windows\System32` por padrão
+  - Código agora usa `os.Executable()` e `os.Chdir()` para definir diretório correto
+
+#### Novos Componentes
+- ✅ `internal/service/windows_service.go` - Implementação completa Windows Service API
+- ✅ `cmd/server/service_windows.go` - Funções específicas Windows (build tag)
+- ✅ `cmd/server/service_other.go` - Stubs para Linux/Mac (build tag)
+
+#### Documentação
+- ✅ `docs/setup/WINDOWS_SERVICE.md` - Guia completo de instalação e gerenciamento
+- ✅ `docs/WINDOWS_SERVICE_UPDATE.md` - Guia de atualização com antes/depois
+
+### 📝 Detalhes Técnicos
+
+**Problema:** Executável Go comum não pode ser simplesmente registrado como serviço Windows com `sc create`. É necessário implementar a Windows Service API para responder aos comandos do Service Control Manager (SCM).
+
+**Solução:**
+- Uso de `golang.org/x/sys/windows/svc` para implementar interface Windows Service
+- Detecção automática via `svc.IsWindowsService()` no `main()`
+- Servidor HTTP executa em goroutine enquanto serviço monitora comandos do SCM
+- Event Log integration via `golang.org/x/sys/windows/svc/eventlog`
+
+**Compatibilidade:**
+- ✅ Windows Server 2016+
+- ✅ Windows 10/11
+- ✅ Mantém compatibilidade com execução console (desenvolvimento)
+- ✅ Build tags garantem que código Windows não afeta Linux/Mac
+
+---
+
 ## [1.0.0] - 2025-01-27
 
 ### ✅ Implementado

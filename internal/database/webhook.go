@@ -246,7 +246,7 @@ func (d *Database) LimpaEmailInconsistente(campoDeveLimpar string, cliCodigo int
 
 	// Usar nome de coluna validado diretamente (não é parametrizável em Oracle)
 	query := fmt.Sprintf(`UPDATE Clientesextensao
-		SET %s = ''
+		SET %s = NULL
 		WHERE clicodigo = :1`, campoDeveLimpar)
 
 	if _, err := d.Exec(query, cliCodigo); err != nil {

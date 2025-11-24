@@ -70,6 +70,12 @@ echo Removendo o serviço...
 sc delete "%SERVICE_NAME%"
 
 if %ERRORLEVEL% EQU 0 (
+    echo Serviço removido com sucesso!
+
+    REM Remover Event Log Source (silencioso)
+    echo Removendo registros do Event Log...
+    reg delete "HKLM\SYSTEM\CurrentControlSet\Services\EventLog\Application\%SERVICE_NAME%" /f >nul 2>&1
+
     echo.
     echo ========================================
     echo   Serviço removido com sucesso!

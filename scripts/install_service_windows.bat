@@ -24,12 +24,11 @@ REM Configurações do serviço
 set SERVICE_NAME=WSICRMREST
 set SERVICE_DISPLAY_NAME=WSICRMREST API Service do Sistema ICRM
 set SERVICE_DESCRIPTION=Web Service REST API para Integração com Sistema ICRM
-set BINARY_PATH=%~dp0..\wsicrmrest_win64.exe
-set WORK_DIR=%~dp0..
 
 REM Converter para path absoluto
-pushd %WORK_DIR%
+pushd %~dp0
 set WORK_DIR=%CD%
+set BINARY_PATH=%CD%\wsicrmrest_win64.exe
 popd
 
 echo Configurações:
@@ -93,6 +92,10 @@ if %ERRORLEVEL% EQU 0 (
 
 echo.
 echo Instalando serviço...
+
+REM Registrar Event Log Source (silencioso, ignora se já existir)
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\EventLog\Application\%SERVICE_NAME%" /v EventMessageFile /t REG_EXPAND_SZ /d "%SystemRoot%\System32\EventCreate.exe" /f >nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\EventLog\Application\%SERVICE_NAME%" /v TypesSupported /t REG_DWORD /d 7 /f >nul 2>&1
 
 REM Criar serviço usando sc create
 sc create "%SERVICE_NAME%" ^

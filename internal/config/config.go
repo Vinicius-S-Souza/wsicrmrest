@@ -10,9 +10,9 @@ import (
 // Estas variáveis podem ser injetadas durante a compilação usando -ldflags
 var (
 	// Version - Versão do sistema (atualizado manualmente)
-	Version = "Versão 3.0.0.1 (GO)"
+	Version = "Versão 3.0.0.2 (GO)"
 	// VersionDate - Data da versão (injetado automaticamente durante a compilação)
-	VersionDate = "development"
+	VersionDate = "2025-11-24"
 	// BuildTime - Data e hora da compilação (injetado automaticamente)
 	BuildTime = "unknown"
 )

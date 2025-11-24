@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"wsicrmrest/internal/config"
 	"wsicrmrest/internal/database"
 	"wsicrmrest/internal/logger"
@@ -60,6 +61,21 @@ import (
 // @tag.description Endpoints for receiving Zenvia webhook events (email and SMS status updates)
 
 func main() {
+	// No Windows, verificar se está rodando como serviço
+	if runtime.GOOS == "windows" {
+		// Tentar executar como Windows Service
+		isService, err := isWindowsService()
+		if err == nil && isService {
+			// Importação condicional para Windows
+			if err := runAsWindowsService(); err != nil {
+				fmt.Fprintf(os.Stderr, "Erro ao executar como serviço Windows: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+		// Se não for serviço, continua execução normal como console
+	}
+
 	// Carregar configurações do dbinit.ini
 	cfg, err := config.LoadConfig("dbinit.ini")
 	if err != nil {
