@@ -1,5 +1,39 @@
 # Changelog - WSICRMREST
 
+## [3.0.0.4] - 2025-11-24
+
+### 🔧 Melhorias
+
+#### Seleção de Arquitetura (32/64 bits)
+- ✅ Detecção automática da arquitetura do Windows
+- ✅ Menu interativo para seleção de executável (32 ou 64 bits)
+- ✅ Validação de compatibilidade arquitetura vs sistema
+- ✅ Avisos quando usa executável incompatível
+- ✅ Fallback inteligente quando executável ideal não existe
+
+**Scripts atualizados:**
+- `install_service_windows.bat` - Seleção de arquitetura na instalação
+- `uninstall_service_windows.bat` - Mostra arquitetura instalada
+- `manage_service_windows.bat` - Exibe arquitetura no menu
+
+**Documentação:**
+- `docs/setup/SELECAO_ARQUITETURA.md` - Guia completo sobre 32/64 bits
+- `docs/setup/WINDOWS_SERVICE.md` - Atualizado com novo fluxo
+
+**Funcionalidades:**
+- Detecta PROCESSOR_ARCHITEW6432 e PROCESSOR_ARCHITECTURE
+- Lista executáveis disponíveis (win32.exe e win64.exe)
+- Permite seleção manual ou automática (padrão)
+- Valida existência do executável escolhido
+- Exibe aviso se arquitetura não é ideal
+
+**Opções de seleção:**
+- [A] Automático (recomendado) - Detecta e usa executável correto
+- [1] Manual 32 bits - Força uso de win32.exe
+- [2] Manual 64 bits - Força uso de win64.exe
+
+---
+
 ## [3.0.0.3] - 2025-11-24
 
 ### 🛡️ Segurança

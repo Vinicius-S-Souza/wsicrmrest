@@ -30,7 +30,22 @@ echo.
 REM Obter status do serviço
 for /f "tokens=3" %%i in ('sc query "%SERVICE_NAME%" ^| findstr "STATE"') do set SERVICE_STATE=%%i
 
+REM Obter caminho do executável
+for /f "tokens=2*" %%i in ('sc qc "%SERVICE_NAME%" ^| findstr "BINARY_PATH_NAME"') do set BINARY_PATH_NAME=%%j
+set BINARY_PATH_NAME=%BINARY_PATH_NAME:"=%
+
+REM Detectar arquitetura
+set INSTALLED_ARCH=desconhecida
+if not "%BINARY_PATH_NAME%"=="" (
+    echo %BINARY_PATH_NAME% | findstr /i "win32.exe" >nul
+    if %ERRORLEVEL%==0 set INSTALLED_ARCH=32 bits
+
+    echo %BINARY_PATH_NAME% | findstr /i "win64.exe" >nul
+    if %ERRORLEVEL%==0 set INSTALLED_ARCH=64 bits
+)
+
 echo Status do Serviço: %SERVICE_STATE%
+echo Arquitetura: %INSTALLED_ARCH%
 echo.
 echo Opções:
 echo   1 - Iniciar serviço

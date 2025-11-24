@@ -119,6 +119,9 @@ O serviço registra eventos importantes no **Windows Event Log**:
    ```
 
 4. **O script irá:**
+   - ✅ Detectar automaticamente a arquitetura do Windows (32 ou 64 bits)
+   - ✅ Listar executáveis disponíveis (win32.exe e/ou win64.exe)
+   - ✅ Permitir seleção manual ou detecção automática
    - ✅ Verificar permissões de administrador
    - ✅ Validar existência do executável e `dbinit.ini`
    - ✅ Registrar Event Log source
@@ -126,6 +129,28 @@ O serviço registra eventos importantes no **Windows Event Log**:
    - ✅ Configurar início automático (com delay)
    - ✅ Configurar recuperação automática em caso de falha
    - ✅ Perguntar se deseja iniciar o serviço
+
+**Exemplo de saída:**
+```
+Detectando arquitetura do Windows...
+Sistema detectado: Windows 64 bits
+
+Executáveis disponíveis:
+  [1] wsicrmrest_win32.exe (32 bits)
+  [2] wsicrmrest_win64.exe (64 bits)
+  [A] Detectar automaticamente (recomendado)
+
+Escolha o executável [1/2/A - padrão A]:
+
+============================================
+Configurações do Serviço:
+============================================
+  Nome do Serviço: WSICRMREST
+  Nome de Exibição: WSICRMREST API Service do Sistema ICRM
+  Executável: C:\CRM\WSICRMREST\wsicrmrest_win64.exe
+  Arquitetura: 64 bits (auto)
+  Diretório de Trabalho: C:\CRM\WSICRMREST
+```
 
 ### Método 2: Manual via `sc` Command
 

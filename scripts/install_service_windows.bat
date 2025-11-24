@@ -28,23 +28,134 @@ set SERVICE_DESCRIPTION=Web Service REST API para Integração com Sistema ICRM
 REM Converter para path absoluto
 pushd %~dp0
 set WORK_DIR=%CD%
-set BINARY_PATH=%CD%\wsicrmrest_win64.exe
 popd
 
-echo Configurações:
+REM ============================================
+REM Detectar arquitetura do Windows
+REM ============================================
+echo Detectando arquitetura do Windows...
+echo.
+
+REM Verificar se é 64 bits
+if defined PROCESSOR_ARCHITEW6432 (
+    set ARCH=64
+    set ARCH_NAME=64 bits
+) else if "%PROCESSOR_ARCHITECTURE%"=="AMD64" (
+    set ARCH=64
+    set ARCH_NAME=64 bits
+) else if "%PROCESSOR_ARCHITECTURE%"=="x86" (
+    set ARCH=32
+    set ARCH_NAME=32 bits
+) else (
+    set ARCH=64
+    set ARCH_NAME=64 bits (detectado por padrão)
+)
+
+echo Sistema detectado: Windows %ARCH_NAME%
+echo.
+
+REM ============================================
+REM Verificar executáveis disponíveis
+REM ============================================
+set EXE_32=%WORK_DIR%\wsicrmrest_win32.exe
+set EXE_64=%WORK_DIR%\wsicrmrest_win64.exe
+set HAS_32=0
+set HAS_64=0
+
+if exist "%EXE_32%" set HAS_32=1
+if exist "%EXE_64%" set HAS_64=1
+
+REM ============================================
+REM Selecionar executável
+REM ============================================
+echo Executáveis disponíveis:
+if %HAS_32%==1 echo   [1] wsicrmrest_win32.exe (32 bits)
+if %HAS_64%==1 echo   [2] wsicrmrest_win64.exe (64 bits)
+echo   [A] Detectar automaticamente (recomendado)
+echo.
+
+REM Se nenhum executável existe
+if %HAS_32%==0 if %HAS_64%==0 (
+    echo ERRO: Nenhum executável encontrado!
+    echo.
+    echo Por favor, compile o projeto primeiro:
+    echo   1. Execute: scripts\build_windows.bat
+    echo   2. Ou execute: make build-windows
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Perguntar ao usuário
+set /p CHOICE="Escolha o executável [1/2/A - padrão A]: "
+
+REM Se não escolheu nada, usar auto-detect
+if "%CHOICE%"=="" set CHOICE=A
+
+REM Processar escolha
+if /i "%CHOICE%"=="A" (
+    REM Auto-detect baseado na arquitetura
+    if %ARCH%==32 (
+        if %HAS_32%==1 (
+            set BINARY_PATH=%EXE_32%
+            set SELECTED_ARCH=32 bits (auto)
+        ) else if %HAS_64%==1 (
+            echo.
+            echo AVISO: Sistema 32 bits, mas apenas executável 64 bits disponível.
+            echo Usando wsicrmrest_win64.exe (pode não funcionar em Windows 32 bits)
+            set BINARY_PATH=%EXE_64%
+            set SELECTED_ARCH=64 bits (fallback)
+        )
+    ) else (
+        if %HAS_64%==1 (
+            set BINARY_PATH=%EXE_64%
+            set SELECTED_ARCH=64 bits (auto)
+        ) else if %HAS_32%==1 (
+            echo.
+            echo AVISO: Usando executável 32 bits em sistema 64 bits.
+            echo Recomenda-se compilar versão 64 bits para melhor desempenho.
+            set BINARY_PATH=%EXE_32%
+            set SELECTED_ARCH=32 bits (fallback)
+        )
+    )
+) else if "%CHOICE%"=="1" (
+    if %HAS_32%==1 (
+        set BINARY_PATH=%EXE_32%
+        set SELECTED_ARCH=32 bits (manual)
+    ) else (
+        echo ERRO: wsicrmrest_win32.exe não encontrado!
+        pause
+        exit /b 1
+    )
+) else if "%CHOICE%"=="2" (
+    if %HAS_64%==1 (
+        set BINARY_PATH=%EXE_64%
+        set SELECTED_ARCH=64 bits (manual)
+    ) else (
+        echo ERRO: wsicrmrest_win64.exe não encontrado!
+        pause
+        exit /b 1
+    )
+) else (
+    echo ERRO: Escolha inválida!
+    pause
+    exit /b 1
+)
+
+echo.
+echo ============================================
+echo Configurações do Serviço:
+echo ============================================
 echo   Nome do Serviço: %SERVICE_NAME%
 echo   Nome de Exibição: %SERVICE_DISPLAY_NAME%
 echo   Executável: %BINARY_PATH%
+echo   Arquitetura: %SELECTED_ARCH%
 echo   Diretório de Trabalho: %WORK_DIR%
 echo.
 
-REM Verificar se o executável existe
+REM Verificar se o executável existe (dupla verificação)
 if not exist "%BINARY_PATH%" (
     echo ERRO: Executável não encontrado: %BINARY_PATH%
-    echo.
-    echo Por favor, compile o projeto primeiro:
-    echo   1. Execute: build_windows.bat
-    echo   2. Ou execute: make build-windows-64
     echo.
     pause
     exit /b 1
