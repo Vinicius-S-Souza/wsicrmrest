@@ -1,6 +1,8 @@
 @echo off
+setlocal enabledelayedexpansion
 REM Script de desinstalação do WSICRMREST do Windows Services
 REM Data de criação: 2025-11-17
+REM Última atualização: 2025-11-24
 REM
 REM IMPORTANTE: Execute este script como Administrador
 
@@ -37,20 +39,18 @@ echo.
 REM Obter informações do serviço
 for /f "tokens=3" %%i in ('sc query "%SERVICE_NAME%" ^| findstr "STATE"') do set SERVICE_STATE=%%i
 
-REM Obter caminho do executável
-for /f "tokens=2*" %%i in ('sc qc "%SERVICE_NAME%" ^| findstr "BINARY_PATH_NAME"') do set BINARY_PATH_NAME=%%j
-
-REM Remover aspas do path
-set BINARY_PATH_NAME=%BINARY_PATH_NAME:"=%
-
-REM Detectar arquitetura do executável instalado
+REM Obter caminho do executável e detectar arquitetura
 set INSTALLED_ARCH=desconhecida
-if not "%BINARY_PATH_NAME%"=="" (
-    echo %BINARY_PATH_NAME% | findstr /i "win32.exe" >nul
-    if %ERRORLEVEL%==0 set INSTALLED_ARCH=32 bits
+set BINARY_PATH_NAME=
+for /f "tokens=2*" %%i in ('sc qc "%SERVICE_NAME%" 2^>nul ^| findstr "BINARY_PATH_NAME"') do (
+    set BINARY_PATH_NAME=%%j
+    set BINARY_PATH_NAME=!BINARY_PATH_NAME:"=!
 
-    echo %BINARY_PATH_NAME% | findstr /i "win64.exe" >nul
-    if %ERRORLEVEL%==0 set INSTALLED_ARCH=64 bits
+    echo %%j | findstr /i "win32.exe" >nul
+    if !ERRORLEVEL!==0 set INSTALLED_ARCH=32 bits
+
+    echo %%j | findstr /i "win64.exe" >nul
+    if !ERRORLEVEL!==0 set INSTALLED_ARCH=64 bits
 )
 
 echo Status atual: %SERVICE_STATE%
