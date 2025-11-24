@@ -1,5 +1,48 @@
 # Changelog - WSICRMREST
 
+## [3.0.0.3] - 2025-11-24
+
+### 🛡️ Segurança
+
+#### Fail2Ban Middleware
+- ✅ Implementado middleware de proteção contra ataques de força bruta e scanning
+- ✅ Proteção contra scanning (404s): 10 tentativas em 5min = ban de 1h
+- ✅ Proteção contra brute force (401s): 5 tentativas em 5min = ban de 2h
+- ✅ Rastreamento em memória com limpeza automática
+- ✅ Thread-safe usando sync.RWMutex
+- ✅ Logs detalhados de IPs banidos e tentativas bloqueadas
+
+#### Scripts de Monitoramento
+- ✅ `monitor_security.sh` (Linux) - Análise completa de segurança
+- ✅ `monitor_security.ps1` (Windows) - Análise completa de segurança
+- ✅ `watch_security.sh` (Linux) - Monitoramento em tempo real
+- ✅ Detecta IPs suspeitos com múltiplos 404s
+- ✅ Lista IPs banidos pelo Fail2Ban
+- ✅ Identifica falhas de autenticação
+- ✅ Mostra paths mais atacados
+- ✅ Calcula estatísticas e fornece recomendações
+
+#### Documentação de Segurança
+- ✅ `docs/ANALISE_SEGURANCA.md` - Análise completa dos ataques detectados
+- ✅ `docs/setup/MONITORAMENTO_SEGURANCA.md` - Guia completo de monitoramento
+
+### 📝 Detalhes Técnicos
+
+**Middleware Fail2Ban (`internal/middleware/fail2ban.go`):**
+- Estrutura `IPTracker` com rastreamento de tentativas falhas
+- Dois trackers independentes: um para 404s e outro para 401s
+- Método `IsBanned()` para verificar se IP está banido
+- Método `RecordFailure()` para registrar tentativas e aplicar ban
+- Cleanup automático a cada 5 minutos via goroutine
+- Resposta 403 com mensagem clara ao usuário banido
+
+**Integração:**
+- Aplicado em `cmd/server/main.go`
+- Aplicado em `internal/service/windows_service.go`
+- Logs de configuração ao iniciar servidor
+
+---
+
 ## [1.26.4.28] - 2025-11-24
 
 ### 🔧 Corrigido

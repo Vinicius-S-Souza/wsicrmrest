@@ -86,6 +86,7 @@ func (ws *WindowsService) runHTTPServer() {
 
 	// Aplicar middlewares de segurança
 	router.Use(middleware.SecurityMiddleware(ws.config))
+	router.Use(middleware.Fail2BanMiddleware(ws.log)) // Proteção contra ataques de força bruta
 	router.Use(middleware.RateLimitMiddleware(ws.config))
 	router.Use(middleware.CORS(ws.config.CORS, ws.config.Application.Environment, ws.log))
 
