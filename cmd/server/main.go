@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"time"
 	"wsicrmrest/internal/config"
 	"wsicrmrest/internal/database"
 	"wsicrmrest/internal/logger"
@@ -142,18 +143,32 @@ func main() {
 
 	// Aplicar middlewares de segurança
 	router.Use(middleware.SecurityMiddleware(cfg))
-	router.Use(middleware.SimpleFail2BanMiddleware(log)) // Proteção contra ataques de força bruta (compatível com WSICRMMDB)
+
+	// Fail2Ban com configuração do dbinit.ini
+	if cfg.Fail2Ban.Enabled {
+		f2bMiddleware := middleware.Fail2BanMiddleware(middleware.Fail2BanConfig{
+			MaxAttempts:     cfg.Fail2Ban.MaxAttempts,
+			BanDuration:     time.Duration(cfg.Fail2Ban.BanDurationMinutes) * time.Minute,
+			WindowDuration:  time.Duration(cfg.Fail2Ban.WindowDurationMinutes) * time.Minute,
+			CleanupInterval: time.Duration(cfg.Fail2Ban.CleanupIntervalMinutes) * time.Minute,
+			WhitelistIPs:    cfg.Fail2Ban.WhitelistIPs,
+		}, log)
+		router.Use(f2bMiddleware)
+
+		log.Info("Fail2Ban ativado (configurável via dbinit.ini)",
+			"max_attempts", cfg.Fail2Ban.MaxAttempts,
+			"ban_duration", fmt.Sprintf("%dm", cfg.Fail2Ban.BanDurationMinutes),
+			"window_duration", fmt.Sprintf("%dm", cfg.Fail2Ban.WindowDurationMinutes),
+			"cleanup_interval", fmt.Sprintf("%dm", cfg.Fail2Ban.CleanupIntervalMinutes),
+			"whitelist_ips", cfg.Fail2Ban.WhitelistIPs)
+	} else {
+		log.Warn("Fail2Ban DESABILITADO - Sistema vulnerável a ataques de força bruta!")
+	}
+
 	router.Use(middleware.RateLimitMiddleware(cfg))
 
 	// Aplicar middleware CORS com validação de produção
 	router.Use(middleware.CORS(cfg.CORS, cfg.Application.Environment, log))
-
-	// Log configurações de segurança
-	log.Info("Fail2Ban ativado (Modo Simple)",
-		"max_attempts", 5,
-		"ban_duration", "30m",
-		"window_duration", "10m",
-		"cleanup_interval", "5m")
 
 	if cfg.Security.RateLimitEnabled {
 		log.Info("Rate limiting habilitado",

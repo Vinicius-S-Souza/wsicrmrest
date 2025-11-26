@@ -93,7 +93,28 @@ func (ws *WindowsService) runHTTPServer() {
 
 	// Aplicar middlewares de segurança
 	router.Use(middleware.SecurityMiddleware(ws.config))
-	router.Use(middleware.SimpleFail2BanMiddleware(ws.log)) // Proteção contra ataques de força bruta (compatível com WSICRMMDB)
+
+	// Fail2Ban com configuração do dbinit.ini
+	if ws.config.Fail2Ban.Enabled {
+		f2bMiddleware := middleware.Fail2BanMiddleware(middleware.Fail2BanConfig{
+			MaxAttempts:     ws.config.Fail2Ban.MaxAttempts,
+			BanDuration:     time.Duration(ws.config.Fail2Ban.BanDurationMinutes) * time.Minute,
+			WindowDuration:  time.Duration(ws.config.Fail2Ban.WindowDurationMinutes) * time.Minute,
+			CleanupInterval: time.Duration(ws.config.Fail2Ban.CleanupIntervalMinutes) * time.Minute,
+			WhitelistIPs:    ws.config.Fail2Ban.WhitelistIPs,
+		}, ws.log)
+		router.Use(f2bMiddleware)
+
+		ws.log.Infow("Fail2Ban ativado (configurável via dbinit.ini)",
+			"max_attempts", ws.config.Fail2Ban.MaxAttempts,
+			"ban_duration", fmt.Sprintf("%dm", ws.config.Fail2Ban.BanDurationMinutes),
+			"window_duration", fmt.Sprintf("%dm", ws.config.Fail2Ban.WindowDurationMinutes),
+			"cleanup_interval", fmt.Sprintf("%dm", ws.config.Fail2Ban.CleanupIntervalMinutes),
+			"whitelist_ips", ws.config.Fail2Ban.WhitelistIPs)
+	} else {
+		ws.log.Warn("Fail2Ban DESABILITADO - Sistema vulnerável a ataques de força bruta!")
+	}
+
 	router.Use(middleware.RateLimitMiddleware(ws.config))
 	router.Use(middleware.CORS(ws.config.CORS, ws.config.Application.Environment, ws.log))
 

@@ -26,6 +26,7 @@ type Config struct {
 	CORS         CORSConfig
 	TLS          TLSConfig
 	Security     SecurityConfig
+	Fail2Ban     Fail2BanConfig
 }
 
 // DatabaseConfig representa as configurações do banco de dados Oracle
@@ -104,6 +105,16 @@ type SecurityConfig struct {
 	RateLimitEnabled bool  // Habilitar rate limiting
 }
 
+// Fail2BanConfig representa as configurações do Fail2Ban
+type Fail2BanConfig struct {
+	Enabled             bool     // Habilitar Fail2Ban (padrão: true)
+	MaxAttempts         int      // Tentativas máximas antes de banir (padrão: 5)
+	BanDurationMinutes  int      // Duração do banimento em minutos (padrão: 30)
+	WindowDurationMinutes int    // Janela de tempo para contar tentativas em minutos (padrão: 10)
+	CleanupIntervalMinutes int   // Intervalo de limpeza em minutos (padrão: 5)
+	WhitelistIPs        []string // IPs que nunca serão banidos (padrão: 127.0.0.1, ::1)
+}
+
 // LoadConfig carrega as configurações do arquivo dbinit.ini
 func LoadConfig(filename string) (*Config, error) {
 	cfg, err := ini.Load(filename)
@@ -139,6 +150,7 @@ func LoadConfig(filename string) (*Config, error) {
 		CORS:     loadCORSConfig(cfg),
 		TLS:      loadTLSConfig(cfg),
 		Security: loadSecurityConfig(cfg),
+		Fail2Ban: loadFail2BanConfig(cfg),
 	}
 
 	// Validações básicas
@@ -261,5 +273,31 @@ func loadSecurityConfig(cfg *ini.File) SecurityConfig {
 		RateLimitPerMin:  secSection.Key("rate_limit_per_min").MustInt(60),
 		RateLimitPerHour: secSection.Key("rate_limit_per_hour").MustInt(1000),
 		RateLimitEnabled: secSection.Key("rate_limit_enabled").MustBool(true),
+	}
+}
+
+// loadFail2BanConfig carrega as configurações do Fail2Ban do arquivo ini
+func loadFail2BanConfig(cfg *ini.File) Fail2BanConfig {
+	f2bSection := cfg.Section("fail2ban")
+
+	// Whitelist IPs (separados por vírgula)
+	whitelistStr := f2bSection.Key("whitelist_ips").MustString("127.0.0.1,::1")
+	var whitelist []string
+	if whitelistStr != "" {
+		for _, ip := range splitAndTrim(whitelistStr, ",") {
+			whitelist = append(whitelist, ip)
+		}
+	}
+	if len(whitelist) == 0 {
+		whitelist = []string{"127.0.0.1", "::1"} // Padrão se vazio
+	}
+
+	return Fail2BanConfig{
+		Enabled:                f2bSection.Key("enabled").MustBool(true),
+		MaxAttempts:            f2bSection.Key("max_attempts").MustInt(5),
+		BanDurationMinutes:     f2bSection.Key("ban_duration_minutes").MustInt(30),
+		WindowDurationMinutes:  f2bSection.Key("window_duration_minutes").MustInt(10),
+		CleanupIntervalMinutes: f2bSection.Key("cleanup_interval_minutes").MustInt(5),
+		WhitelistIPs:           whitelist,
 	}
 }

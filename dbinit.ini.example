@@ -69,3 +69,22 @@ rate_limit_per_hour = 1000
 
 ; Habilitar rate limiting (true/false)
 rate_limit_enabled = true
+
+[fail2ban]
+; Habilitar proteção Fail2Ban contra ataques de força bruta (true/false)
+enabled = true
+
+; Número máximo de tentativas antes de banir um IP (padrão: 5)
+max_attempts = 5
+
+; Duração do banimento em minutos (padrão: 30)
+ban_duration_minutes = 30
+
+; Janela de tempo em minutos para contar tentativas (padrão: 10)
+window_duration_minutes = 10
+
+; Intervalo de limpeza automática em minutos (padrão: 5)
+cleanup_interval_minutes = 5
+
+; IPs que nunca serão banidos, separados por vírgula (padrão: 127.0.0.1,::1)
+whitelist_ips = 127.0.0.1,::1
