@@ -10,9 +10,9 @@ import (
 // Estas variáveis podem ser injetadas durante a compilação usando -ldflags
 var (
 	// Version - Versão do sistema (atualizado manualmente)
-	Version = "Versão 3.0.0.4 (GO)"
+	Version = "Versão 3.0.0.5 (GO)"
 	// VersionDate - Data da versão (injetado automaticamente durante a compilação)
-	VersionDate = "2025-11-24"
+	VersionDate = "2025-11-26"
 	// BuildTime - Data e hora da compilação (injetado automaticamente)
 	BuildTime = "unknown"
 )
@@ -89,10 +89,11 @@ type CORSConfig struct {
 
 // TLSConfig representa as configurações de HTTPS/TLS
 type TLSConfig struct {
-	Enabled  bool   // Habilitar HTTPS
-	CertFile string // Caminho do certificado TLS
-	KeyFile  string // Caminho da chave privada TLS
-	Port     string // Porta HTTPS (padrão: 8443)
+	Enabled     bool   // Habilitar HTTPS
+	CertFile    string // Caminho do certificado TLS
+	KeyFile     string // Caminho da chave privada TLS
+	KeyPassword string // Senha para chave privada criptografada (vazio se não criptografada)
+	Port        string // Porta HTTPS (padrão: 8443)
 }
 
 // SecurityConfig representa as configurações de segurança
@@ -243,10 +244,11 @@ func loadTLSConfig(cfg *ini.File) TLSConfig {
 	tlsSection := cfg.Section("tls")
 
 	return TLSConfig{
-		Enabled:  tlsSection.Key("enabled").MustBool(false),
-		CertFile: tlsSection.Key("cert_file").MustString("certs/server.crt"),
-		KeyFile:  tlsSection.Key("key_file").MustString("certs/server.key"),
-		Port:     tlsSection.Key("port").MustString("8443"),
+		Enabled:     tlsSection.Key("enabled").MustBool(false),
+		CertFile:    tlsSection.Key("cert_file").MustString("certs/server.crt"),
+		KeyFile:     tlsSection.Key("key_file").MustString("certs/server.key"),
+		KeyPassword: tlsSection.Key("key_password").MustString(""), // Vazio = chave não criptografada
+		Port:        tlsSection.Key("port").MustString("8443"),
 	}
 }
 

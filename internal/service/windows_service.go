@@ -5,6 +5,7 @@ package service
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"wsicrmrest/internal/config"
@@ -12,6 +13,7 @@ import (
 	"wsicrmrest/internal/logger"
 	"wsicrmrest/internal/middleware"
 	"wsicrmrest/internal/routes"
+	tlsloader "wsicrmrest/internal/tls"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -39,7 +41,10 @@ func (ws *WindowsService) Execute(args []string, r <-chan svc.ChangeRequest, cha
 	go ws.runHTTPServer()
 
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+
+	ws.log.Info("=======================================")
 	ws.logEvent(eventlog.Info, "Serviço WSICRMREST iniciado com sucesso")
+	ws.log.Info("=======================================")
 
 	// Loop principal do serviço
 loop:
@@ -68,7 +73,9 @@ loop:
 	}
 
 	changes <- svc.Status{State: svc.Stopped}
+	ws.log.Info("=======================================")
 	ws.logEvent(eventlog.Info, "Serviço WSICRMREST parado")
+	ws.log.Info("=======================================")
 	return
 }
 
@@ -118,15 +125,34 @@ func (ws *WindowsService) runHTTPServer() {
 			tlsPort = "8443"
 		}
 
-		ws.log.Info("🔒 Servidor HTTPS/TLS iniciado",
-			"port", tlsPort,
-			"cert", ws.config.TLS.CertFile,
-			"environment", ws.config.Application.Environment)
+		// Carregar configuração TLS (suporta chaves criptografadas)
+		tlsConfig, err := tlsloader.LoadEncryptedTLSConfig(ws.config.TLS.CertFile, ws.config.TLS.KeyFile, ws.config.TLS.KeyPassword)
+		if err != nil {
+			ws.log.Error("Erro ao carregar certificado TLS", "error", err)
+			ws.serverDone <- fmt.Errorf("erro ao carregar certificado TLS: %w", err)
+			return
+		}
 
-		err = router.RunTLS(":"+tlsPort, ws.config.TLS.CertFile, ws.config.TLS.KeyFile)
+		// Criar servidor HTTP customizado com TLS
+		server := &http.Server{
+			Addr:      ":" + tlsPort,
+			Handler:   router,
+			TLSConfig: tlsConfig,
+		}
+
+		ws.log.Info("====================================================================")
+		ws.log.Info("🔒 Servidor HTTPS/TLS iniciado",
+			" - porta: ", tlsPort,
+			" - cert: ", ws.config.TLS.CertFile,
+			" - environment: ", ws.config.Application.Environment)
+		ws.log.Info("====================================================================")
+
+		err = server.ListenAndServeTLS("", "")
 	} else {
-		ws.log.Info("Servidor HTTP iniciado", "port", port, "environment", ws.config.Application.Environment)
+		ws.log.Info("====================================================================")
+		ws.log.Info("Servidor HTTP iniciado", " - porta: ", port, " - environment: ", ws.config.Application.Environment)
 		ws.log.Warn("⚠️  TLS/HTTPS desabilitado - dados trafegam sem criptografia")
+		ws.log.Info("====================================================================")
 
 		err = router.Run(":" + port)
 	}
@@ -138,7 +164,9 @@ func (ws *WindowsService) runHTTPServer() {
 
 // stop para o serviço graciosamente
 func (ws *WindowsService) stop() {
+	ws.log.Info("====================================================================")
 	ws.log.Info("Parando serviço WSICRMREST...")
+	ws.log.Info("====================================================================")
 
 	// Fechar conexão com banco de dados
 	if ws.db != nil {

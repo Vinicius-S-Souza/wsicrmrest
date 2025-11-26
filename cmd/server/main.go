@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"runtime"
 	"wsicrmrest/internal/config"
@@ -9,6 +10,7 @@ import (
 	"wsicrmrest/internal/logger"
 	"wsicrmrest/internal/middleware"
 	"wsicrmrest/internal/routes"
+	tlsloader "wsicrmrest/internal/tls"
 
 	"github.com/gin-gonic/gin"
 )
@@ -187,18 +189,34 @@ func main() {
 			tlsPort = "8443"
 		}
 
+		// Carregar configuração TLS (suporta chaves criptografadas)
+		tlsConfig, err := tlsloader.LoadEncryptedTLSConfig(cfg.TLS.CertFile, cfg.TLS.KeyFile, cfg.TLS.KeyPassword)
+		if err != nil {
+			log.Error("Erro ao carregar certificado TLS", "error", err)
+			os.Exit(1)
+		}
+
+		// Criar servidor HTTP customizado com TLS
+		server := &http.Server{
+			Addr:      ":" + tlsPort,
+			Handler:   router,
+			TLSConfig: tlsConfig,
+		}
+
 		log.Info("🔒 Servidor HTTPS/TLS iniciado",
 			"port", tlsPort,
 			"cert", cfg.TLS.CertFile,
 			"environment", cfg.Application.Environment)
 
-		if err := router.RunTLS(":"+tlsPort, cfg.TLS.CertFile, cfg.TLS.KeyFile); err != nil {
+		if err := server.ListenAndServeTLS("", ""); err != nil {
 			log.Error("Erro ao iniciar servidor HTTPS", "error", err)
 			os.Exit(1)
 		}
 	} else {
-		log.Info("Servidor HTTP iniciado", "port", port, "environment", cfg.Application.Environment)
+		log.Info("====================================================================================================")
+		log.Info("Servidor HTTP iniciado", " - porta: ", port, " - ambiente: ", cfg.Application.Environment)
 		log.Warn("⚠️  TLS/HTTPS desabilitado - dados trafegam sem criptografia")
+		log.Info("====================================================================================================")
 
 		if err := router.Run(":" + port); err != nil {
 			log.Error("Erro ao iniciar servidor", "error", err)

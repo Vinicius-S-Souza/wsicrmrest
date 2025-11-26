@@ -176,7 +176,7 @@ func GenerateToken(cfg *config.Config, db *database.Database, logger *zap.Sugare
 							codError = 200
 
 							// Gravar log do token no banco
-							if err := logTokenToDB(db, cfg, clientID, token, host, nbf, expiration); err != nil {
+							if err := logTokenToDB(db, clientID, token, host, nbf, expiration); err != nil {
 								logger.Errorw("Erro ao gravar log do token", "error", err)
 							}
 						}
@@ -299,7 +299,7 @@ func generateJWT(cfg *config.Config, app *models.Application) (string, int64, in
 }
 
 // logTokenToDB grava o log do token no banco de dados
-func logTokenToDB(db *database.Database, cfg *config.Config, clientID, token, host string, nbf, exp int64) error {
+func logTokenToDB(db *database.Database, clientID, token, host string, nbf, exp int64) error {
 	dataGeracao := time.Unix(nbf, 0)
 	dataExpiracao := time.Unix(exp, 0)
 

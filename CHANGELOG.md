@@ -1,5 +1,91 @@
 # Changelog - WSICRMREST
 
+## [3.0.0.5] - 2025-11-26
+
+### 🔐 Segurança TLS
+
+#### Suporte para Chaves Privadas Criptografadas
+- ✅ Implementado suporte completo para chaves SSL/TLS criptografadas
+- ✅ Auto-detecção de formato: criptografado vs não criptografado
+- ✅ Suporte para PKCS#1 (BEGIN RSA PRIVATE KEY com Proc-Type: 4,ENCRYPTED)
+- ✅ Suporte para PKCS#8 (BEGIN ENCRYPTED PRIVATE KEY)
+- ✅ Compatibilidade total com chaves não criptografadas (backward compatible)
+- ✅ Senha configurável via `dbinit.ini` na seção `[tls]`
+
+**Arquivos criados:**
+- `internal/tls/loader.go` - Módulo de carregamento de certificados TLS com suporte a criptografia
+
+**Arquivos modificados:**
+- `internal/config/config.go` - Adicionado campo `KeyPassword` à estrutura `TLSConfig`
+- `cmd/server/main.go` - Integrado loader TLS customizado para modo console
+- `internal/service/windows_service.go` - Integrado loader TLS customizado para Windows Service
+- `dbinit.ini` - Adicionado campo `key_password` na seção `[tls]`
+
+**Funcionalidades:**
+- Descriptografia automática de chaves PKCS#1 e PKCS#8 usando `x509.DecryptPEMBlock()`
+- Parsing flexível: PKCS#8, PKCS#1 RSA, e Elliptic Curve (EC)
+- Servidor HTTPS customizado com `http.Server` e `TLSConfig`
+- Mensagens de erro claras e descritivas para problemas de senha/formato
+- Configuração TLS segura: TLS 1.2 mínimo + cipher suites recomendadas
+- Zero breaking changes: chaves não criptografadas continuam funcionando
+
+**Configuração no dbinit.ini:**
+```ini
+[tls]
+enabled = true
+cert_file = C:\Apache24\cert\certificate.crt
+key_file = C:\Apache24\cert\private.key
+key_password = sua_senha_aqui  ; Deixe vazio para chaves não criptografadas
+port = 8443
+```
+
+**Resolução de problemas:**
+- ✅ Resolvido: "tls: failed to parse private key" ao usar chaves PKCS#8 criptografadas
+- ✅ Resolvido: Não era possível usar certificados SSL de produção com senha
+- ✅ Aplicação agora suporta certificados SSL padrão de autoridades certificadoras
+
+### 🧹 Qualidade de Código
+
+#### Correção de Warnings do Compilador
+- ✅ Removido parâmetro não utilizado `cfg` da função `logTokenToDB()` em `internal/handlers/token.go`
+- ✅ Atualizado chamador da função para corresponder à nova assinatura
+- ✅ Código mais limpo e sem warnings do `go vet` ou `gopls`
+
+**Impacto:**
+- Melhor manutenibilidade do código
+- Conformidade com boas práticas de Go
+- Funções com assinaturas mais limpas e sem parâmetros desnecessários
+
+### 📝 Detalhes Técnicos
+
+**Fluxo de descriptografia de chaves:**
+1. Ler arquivo de chave privada do disco
+2. Decodificar bloco PEM
+3. Detectar se é criptografada via `x509.IsEncryptedPEMBlock()` ou tipo "ENCRYPTED PRIVATE KEY"
+4. Se criptografada:
+   - Verificar se senha foi fornecida (erro claro se não)
+   - Descriptografar usando `x509.DecryptPEMBlock()` com senha
+5. Se não criptografada: usar bytes direto
+6. Parsear chave descriptografada (PKCS#8 → PKCS#1 → EC)
+7. Criar `tls.Certificate` e `tls.Config`
+8. Retornar configuração pronta para `http.Server`
+
+**Benefícios da implementação:**
+- ✅ Sem dependências externas adicionais (usa apenas `crypto/x509` e `crypto/tls` padrão)
+- ✅ Performance: descriptografia ocorre apenas uma vez na inicialização
+- ✅ Segurança: senha nunca é logada ou exposta
+- ✅ Confiabilidade: testa múltiplos formatos automaticamente
+- ✅ Simplicidade: configuração via arquivo INI, sem variáveis de ambiente complexas
+
+**Compatibilidade:**
+- ✅ Windows Server 2016+
+- ✅ Windows 10/11
+- ✅ Linux (todas distribuições)
+- ✅ Modo Console e Windows Service
+- ✅ Certificados de Let's Encrypt, DigiCert, Sectigo, etc.
+
+---
+
 ## [3.0.0.4] - 2025-11-24
 
 ### 🔧 Melhorias

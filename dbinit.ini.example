@@ -50,6 +50,10 @@ cert_file = certs/server.crt
 ; Caminho da chave privada TLS
 key_file = certs/server.key
 
+; Senha para chave privada criptografada (deixe vazio se chave não for criptografada)
+; Suporta: PKCS#1 (BEGIN RSA PRIVATE KEY) e PKCS#8 (BEGIN ENCRYPTED PRIVATE KEY)
+key_password =
+
 ; Porta HTTPS (padrão: 8443)
 port = 8443
 
