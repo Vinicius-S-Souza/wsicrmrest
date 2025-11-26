@@ -142,18 +142,18 @@ func main() {
 
 	// Aplicar middlewares de segurança
 	router.Use(middleware.SecurityMiddleware(cfg))
-	router.Use(middleware.Fail2BanMiddleware(log)) // Proteção contra ataques de força bruta
+	router.Use(middleware.SimpleFail2BanMiddleware(log)) // Proteção contra ataques de força bruta (compatível com WSICRMMDB)
 	router.Use(middleware.RateLimitMiddleware(cfg))
 
 	// Aplicar middleware CORS com validação de produção
 	router.Use(middleware.CORS(cfg.CORS, cfg.Application.Environment, log))
 
 	// Log configurações de segurança
-	log.Info("Fail2Ban ativado",
-		"max_404s", 10,
-		"max_auth_failures", 5,
-		"ban_duration_404", "1h",
-		"ban_duration_auth", "2h")
+	log.Info("Fail2Ban ativado (Modo Simple)",
+		"max_attempts", 5,
+		"ban_duration", "30m",
+		"window_duration", "10m",
+		"cleanup_interval", "5m")
 
 	if cfg.Security.RateLimitEnabled {
 		log.Info("Rate limiting habilitado",

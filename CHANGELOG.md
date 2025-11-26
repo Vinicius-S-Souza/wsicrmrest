@@ -1,5 +1,104 @@
 # Changelog - WSICRMREST
 
+## [3.0.0.6] - 2025-11-26
+
+### 🛡️ Fail2Ban - Implementação Compatível com WSICRMMDB
+
+#### APIs Administrativas de Fail2Ban
+- ✅ **3 novos endpoints REST** para gerenciamento de IPs banidos
+- ✅ `GET /connect/v1/fail2ban/status` - Lista todos os IPs banidos
+- ✅ `GET /connect/v1/fail2ban/status?ip=X` - Estatísticas de IP específico
+- ✅ `POST /connect/v1/fail2ban/unban` - Desbanir IP manualmente
+- ✅ `GET /connect/v1/fail2ban/ip/:ip` - Detalhes completos de um IP
+
+#### Middleware Fail2Ban Aprimorado
+- ✅ Implementação **100% compatível com WSICRMMDB**
+- ✅ Padrão Singleton para instância global
+- ✅ Estrutura `IPAttempt` com rastreamento detalhado:
+  - `attempts` - Lista de timestamps de tentativas
+  - `totalAttempts` - Contador total desde o início
+  - `firstAttempt` - Primeira tentativa registrada
+  - `lastAttempt` - Última tentativa registrada
+  - `banned` - Status de banimento
+  - `banExpiry` - Quando o ban expira
+- ✅ Whitelist de IPs (localhost nunca é banido)
+- ✅ Cleanup automático a cada 5 minutos
+- ✅ 3 modos de operação:
+  - **Simple**: 5 tentativas, ban 30min, janela 10min (padrão)
+  - **Strict**: 3 tentativas, ban 1h, janela 5min
+  - **Custom**: Configuração personalizada
+
+#### Recursos Adicionais
+- ✅ Thread-safe com `sync.RWMutex`
+- ✅ Goroutine de limpeza periódica
+- ✅ Desban automático após expiração
+- ✅ Logs estruturados com Zap
+- ✅ Respostas JSON padronizadas
+- ✅ Estatísticas em tempo real
+
+**Arquivos criados:**
+- `internal/handlers/fail2ban_admin.go` - Handlers administrativos (181 linhas)
+
+**Arquivos modificados:**
+- `internal/middleware/fail2ban.go` - Reescrito completamente (347 linhas)
+- `internal/routes/routes.go` - Adicionado grupo fail2ban
+- `cmd/server/main.go` - Integrado SimpleFail2BanMiddleware
+- `internal/service/windows_service.go` - Integrado SimpleFail2BanMiddleware
+- `internal/config/config.go` - Versão 3.0.0.6
+
+**Endpoints Sensíveis Monitorados:**
+- `/connect/v1/token` - Geração de tokens JWT
+- `/connect/v1/wsteste` - Teste de conexão
+- Qualquer endpoint que retorna 401 (Unauthorized)
+- Qualquer endpoint que retorna 403 (Forbidden)
+
+**Uso das APIs:**
+
+```bash
+# Listar IPs banidos
+curl http://localhost:8080/connect/v1/fail2ban/status
+
+# Estatísticas de IP específico
+curl "http://localhost:8080/connect/v1/fail2ban/status?ip=192.168.1.50"
+
+# Desbanir IP
+curl -X POST http://localhost:8080/connect/v1/fail2ban/unban \
+  -H "Content-Type: application/json" \
+  -d '{"ip": "192.168.1.50"}'
+
+# Detalhes de IP
+curl http://localhost:8080/connect/v1/fail2ban/ip/192.168.1.50
+```
+
+**Resposta de Exemplo:**
+
+```json
+{
+  "banned_ips": ["192.168.1.50"],
+  "banned_count": 1,
+  "ip_stats": {
+    "tracked": true,
+    "banned": true,
+    "total_attempts": 8,
+    "recent_attempts": 5,
+    "first_attempt": "2025-11-26T10:30:00Z",
+    "last_attempt": "2025-11-26T10:35:00Z",
+    "ban_expiry": "2025-11-26T11:05:00Z",
+    "ban_time_remaining": "25m0s"
+  }
+}
+```
+
+**Benefícios:**
+- ✅ API REST completa para gerenciamento de segurança
+- ✅ Compatibilidade total com sistemas WSICRMMDB existentes
+- ✅ Visibilidade em tempo real de ataques
+- ✅ Controle manual de bans para administradores
+- ✅ Estatísticas detalhadas para análise de segurança
+- ✅ Sem necessidade de acesso ao servidor para gerenciar bans
+
+---
+
 ## [3.0.0.5] - 2025-11-26
 
 ### 🔐 Segurança TLS

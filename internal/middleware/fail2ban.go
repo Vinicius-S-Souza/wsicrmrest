@@ -1,6 +1,12 @@
+// Data de criação: 26/11/2025 10:55
+// Última atualização: 26/11/2025 10:55
+// Versão: 3.0.0.6
+// Middleware de Fail2Ban para proteção contra ataques de força bruta
+// Implementação compatível com WSICRMMDB
 package middleware
 
 import (
+	"net/http"
 	"sync"
 	"time"
 
@@ -8,238 +14,334 @@ import (
 	"go.uber.org/zap"
 )
 
-// IPTracker rastreia tentativas falhas e IPs banidos
-type IPTracker struct {
-	mu             sync.RWMutex
-	failedAttempts map[string][]time.Time // IP -> lista de timestamps de falhas
-	bannedIPs      map[string]time.Time   // IP -> timestamp de quando o ban expira
-	maxAttempts    int                    // Número máximo de tentativas antes do ban
-	banDuration    time.Duration          // Duração do banimento
-	timeWindow     time.Duration          // Janela de tempo para contar tentativas
-	logger         *zap.SugaredLogger
+// Fail2BanConfig define configurações do Fail2Ban
+type Fail2BanConfig struct {
+	MaxAttempts     int           // Tentativas máximas antes de bloquear
+	BanDuration     time.Duration // Duração do banimento
+	WindowDuration  time.Duration // Janela de tempo para contar tentativas
+	CleanupInterval time.Duration // Intervalo de limpeza de registros antigos
+	WhitelistIPs    []string      // IPs que nunca serão bloqueados
 }
 
-// NewIPTracker cria um novo rastreador de IPs
-func NewIPTracker(maxAttempts int, banDuration, timeWindow time.Duration, logger *zap.SugaredLogger) *IPTracker {
-	tracker := &IPTracker{
-		failedAttempts: make(map[string][]time.Time),
-		bannedIPs:      make(map[string]time.Time),
-		maxAttempts:    maxAttempts,
-		banDuration:    banDuration,
-		timeWindow:     timeWindow,
-		logger:         logger,
-	}
-
-	// Iniciar limpeza periódica de dados antigos
-	go tracker.cleanupLoop()
-
-	return tracker
+// IPAttempt rastreia tentativas de um IP
+type IPAttempt struct {
+	attempts      []time.Time
+	banned        bool
+	banExpiry     time.Time
+	totalAttempts int // Total de tentativas desde o início
+	firstAttempt  time.Time
+	lastAttempt   time.Time
 }
 
-// IsBanned verifica se um IP está banido
-func (t *IPTracker) IsBanned(ip string) bool {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
+// Fail2Ban gerencia bloqueios por IP
+type Fail2Ban struct {
+	config    Fail2BanConfig
+	ips       map[string]*IPAttempt
+	whitelist map[string]bool
+	mu        sync.RWMutex
+	logger    *zap.SugaredLogger
+}
 
-	if banTime, exists := t.bannedIPs[ip]; exists {
-		if time.Now().Before(banTime) {
-			return true
+var (
+	fail2ban     *Fail2Ban
+	fail2banOnce sync.Once
+)
+
+// NewFail2Ban cria uma nova instância de Fail2Ban
+func NewFail2Ban(config Fail2BanConfig, logger *zap.SugaredLogger) *Fail2Ban {
+	fail2banOnce.Do(func() {
+		fail2ban = &Fail2Ban{
+			config:    config,
+			ips:       make(map[string]*IPAttempt),
+			whitelist: make(map[string]bool),
+			logger:    logger,
 		}
-		// Ban expirou, remover
-		delete(t.bannedIPs, ip)
-	}
-	return false
-}
 
-// RecordFailure registra uma tentativa falha e retorna true se o IP foi banido
-func (t *IPTracker) RecordFailure(ip string, path string) bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	now := time.Now()
-	attempts := t.failedAttempts[ip]
-
-	// Filtrar apenas tentativas recentes (dentro da janela de tempo)
-	var recentAttempts []time.Time
-	for _, attempt := range attempts {
-		if now.Sub(attempt) < t.timeWindow {
-			recentAttempts = append(recentAttempts, attempt)
+		// Adiciona IPs da whitelist
+		for _, ip := range config.WhitelistIPs {
+			fail2ban.whitelist[ip] = true
 		}
-	}
 
-	// Adicionar nova tentativa
-	recentAttempts = append(recentAttempts, now)
-	t.failedAttempts[ip] = recentAttempts
+		// Inicia limpeza periódica
+		go fail2ban.cleanupRoutine()
 
-	// Verificar se excedeu o limite
-	if len(recentAttempts) >= t.maxAttempts {
-		t.bannedIPs[ip] = now.Add(t.banDuration)
-		delete(t.failedAttempts, ip) // Limpar contadores após ban
+		logger.Infow("Fail2Ban inicializado",
+			"max_attempts", config.MaxAttempts,
+			"ban_duration", config.BanDuration,
+			"window_duration", config.WindowDuration,
+			"whitelist_count", len(config.WhitelistIPs),
+		)
+	})
 
-		t.logger.Warn("IP banido por múltiplas tentativas suspeitas",
-			"ip", ip,
-			"attempts", len(recentAttempts),
-			"path", path,
-			"ban_until", t.bannedIPs[ip].Format(time.RFC3339))
-
-		return true // IP foi banido
-	}
-
-	return false
+	return fail2ban
 }
 
-// GetBannedIPs retorna lista de IPs atualmente banidos
-func (t *IPTracker) GetBannedIPs() map[string]time.Time {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	result := make(map[string]time.Time)
-	now := time.Now()
-
-	for ip, banTime := range t.bannedIPs {
-		if now.Before(banTime) {
-			result[ip] = banTime
-		}
-	}
-
-	return result
+// GetFail2Ban retorna a instância singleton
+func GetFail2Ban() *Fail2Ban {
+	return fail2ban
 }
 
-// UnbanIP remove um IP da lista de banidos (uso manual)
-func (t *IPTracker) UnbanIP(ip string) bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if _, exists := t.bannedIPs[ip]; exists {
-		delete(t.bannedIPs, ip)
-		t.logger.Info("IP desbanido manualmente", "ip", ip)
-		return true
-	}
-	return false
-}
-
-// cleanupLoop limpa periodicamente dados expirados
-func (t *IPTracker) cleanupLoop() {
-	ticker := time.NewTicker(5 * time.Minute)
+// cleanupRoutine remove registros antigos periodicamente
+func (f *Fail2Ban) cleanupRoutine() {
+	ticker := time.NewTicker(f.config.CleanupInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		t.cleanup()
+		f.cleanup()
 	}
 }
 
-// cleanup remove dados expirados
-func (t *IPTracker) cleanup() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+// cleanup remove IPs que não estão mais banidos e não têm atividade recente
+func (f *Fail2Ban) cleanup() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	now := time.Now()
+	cleanedCount := 0
+
+	for ip, attempt := range f.ips {
+		// Remove se não está banido e última tentativa foi há mais de 1 hora
+		if !attempt.banned && now.Sub(attempt.lastAttempt) > time.Hour {
+			delete(f.ips, ip)
+			cleanedCount++
+		}
+	}
+
+	if cleanedCount > 0 {
+		f.logger.Debugw("Limpeza Fail2Ban concluída",
+			"cleaned_ips", cleanedCount,
+			"tracked_ips", len(f.ips),
+		)
+	}
+}
+
+// isWhitelisted verifica se um IP está na whitelist
+func (f *Fail2Ban) isWhitelisted(ip string) bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.whitelist[ip]
+}
+
+// IsBanned verifica se um IP está banido
+func (f *Fail2Ban) IsBanned(ip string) bool {
+	if f.isWhitelisted(ip) {
+		return false
+	}
+
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	attempt, exists := f.ips[ip]
+	if !exists {
+		return false
+	}
+
+	// Verifica se ainda está banido
+	if attempt.banned {
+		if time.Now().Before(attempt.banExpiry) {
+			return true
+		}
+		// Ban expirou, desbloqueia
+		attempt.banned = false
+		attempt.attempts = []time.Time{}
+		f.logger.Infow("IP desbanido automaticamente",
+			"ip", ip,
+			"total_attempts", attempt.totalAttempts,
+		)
+	}
+
+	return false
+}
+
+// RecordAttempt registra uma tentativa de acesso (falha de autenticação, etc)
+func (f *Fail2Ban) RecordAttempt(ip string, path string, statusCode int) {
+	if f.isWhitelisted(ip) {
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
 	now := time.Now()
 
-	// Remover bans expirados
-	for ip, banTime := range t.bannedIPs {
-		if now.After(banTime) {
-			delete(t.bannedIPs, ip)
-			t.logger.Info("Ban expirado removido", "ip", ip)
+	// Obtém ou cria registro do IP
+	attempt, exists := f.ips[ip]
+	if !exists {
+		attempt = &IPAttempt{
+			attempts:     []time.Time{},
+			firstAttempt: now,
 		}
+		f.ips[ip] = attempt
 	}
 
-	// Remover tentativas antigas
-	for ip, attempts := range t.failedAttempts {
-		var recent []time.Time
-		for _, attempt := range attempts {
-			if now.Sub(attempt) < t.timeWindow {
-				recent = append(recent, attempt)
-			}
-		}
+	// Atualiza contadores
+	attempt.totalAttempts++
+	attempt.lastAttempt = now
 
-		if len(recent) == 0 {
-			delete(t.failedAttempts, ip)
-		} else {
-			t.failedAttempts[ip] = recent
+	// Remove tentativas fora da janela de tempo
+	cutoff := now.Add(-f.config.WindowDuration)
+	validAttempts := []time.Time{}
+	for _, t := range attempt.attempts {
+		if t.After(cutoff) {
+			validAttempts = append(validAttempts, t)
 		}
 	}
+	attempt.attempts = validAttempts
 
-	t.logger.Debug("Limpeza de Fail2Ban concluída",
-		"banned_ips", len(t.bannedIPs),
-		"tracked_ips", len(t.failedAttempts))
+	// Adiciona tentativa atual
+	attempt.attempts = append(attempt.attempts, now)
+
+	// Verifica se deve banir
+	if len(attempt.attempts) >= f.config.MaxAttempts {
+		attempt.banned = true
+		attempt.banExpiry = now.Add(f.config.BanDuration)
+
+		f.logger.Warnw("IP banido por múltiplas tentativas suspeitas",
+			"ip", ip,
+			"path", path,
+			"attempts_in_window", len(attempt.attempts),
+			"total_attempts", attempt.totalAttempts,
+			"ban_duration", f.config.BanDuration,
+			"ban_expiry", attempt.banExpiry,
+			"status_code", statusCode,
+		)
+	}
 }
 
-// Fail2BanMiddleware cria middleware de proteção contra ataques
-func Fail2BanMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
-	// Configuração padrão:
-	// - 10 tentativas 404 em 5 minutos = ban de 1 hora
-	// - 5 tentativas 401 (auth falha) em 5 minutos = ban de 2 horas
-	tracker404 := NewIPTracker(
-		10,            // max 10 404s
-		1*time.Hour,   // ban por 1 hora
-		5*time.Minute, // janela de 5 minutos
-		logger,
-	)
+// GetIPStats retorna estatísticas de um IP
+func (f *Fail2Ban) GetIPStats(ip string) map[string]interface{} {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 
-	tracker401 := NewIPTracker(
-		5,              // max 5 falhas de auth
-		2*time.Hour,    // ban por 2 horas
-		5*time.Minute,  // janela de 5 minutos
-		logger,
-	)
+	attempt, exists := f.ips[ip]
+	if !exists {
+		return map[string]interface{}{
+			"tracked": false,
+		}
+	}
+
+	now := time.Now()
+	remaining := time.Duration(0)
+	if attempt.banned && now.Before(attempt.banExpiry) {
+		remaining = attempt.banExpiry.Sub(now)
+	}
+
+	return map[string]interface{}{
+		"tracked":            true,
+		"banned":             attempt.banned,
+		"total_attempts":     attempt.totalAttempts,
+		"recent_attempts":    len(attempt.attempts),
+		"first_attempt":      attempt.firstAttempt,
+		"last_attempt":       attempt.lastAttempt,
+		"ban_expiry":         attempt.banExpiry,
+		"ban_time_remaining": remaining.String(),
+	}
+}
+
+// Fail2BanMiddleware retorna middleware Gin para Fail2Ban
+func Fail2BanMiddleware(config Fail2BanConfig, logger *zap.SugaredLogger) gin.HandlerFunc {
+	f2b := NewFail2Ban(config, logger)
 
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
-		path := c.Request.URL.Path
 
-		// Verificar se IP está banido (por 404s)
-		if tracker404.IsBanned(ip) {
-			logger.Warn("IP banido (404s) tentou acessar",
+		// Verifica se IP está banido
+		if f2b.IsBanned(ip) {
+			stats := f2b.GetIPStats(ip)
+
+			f2b.logger.Warnw("Acesso bloqueado - IP banido",
 				"ip", ip,
-				"path", path,
-				"user_agent", c.Request.UserAgent())
+				"path", c.Request.URL.Path,
+				"method", c.Request.Method,
+				"user_agent", c.Request.UserAgent(),
+			)
 
-			c.AbortWithStatusJSON(403, gin.H{
-				"error":   "Access forbidden",
-				"message": "Too many invalid requests. Please try again later.",
+			c.JSON(http.StatusForbidden, gin.H{
+				"code":    "403",
+				"message": "Acesso bloqueado devido a múltiplas tentativas suspeitas. Tente novamente mais tarde.",
+				"error":   "Forbidden - IP Banned",
+				"details": gin.H{
+					"ban_time_remaining": stats["ban_time_remaining"],
+					"total_attempts":     stats["total_attempts"],
+				},
 			})
-			return
-		}
-
-		// Verificar se IP está banido (por auth falhas)
-		if tracker401.IsBanned(ip) {
-			logger.Warn("IP banido (auth) tentou acessar",
-				"ip", ip,
-				"path", path,
-				"user_agent", c.Request.UserAgent())
-
-			c.AbortWithStatusJSON(403, gin.H{
-				"error":   "Access forbidden",
-				"message": "Too many authentication failures. Please try again later.",
-			})
+			c.Abort()
 			return
 		}
 
 		c.Next()
 
-		// Após processar requisição, verificar status
-		status := c.Writer.Status()
+		// Após processar a requisição, verifica se houve falha de autenticação
+		statusCode := c.Writer.Status()
 
-		// Registrar 404s (possível scanning)
-		if status == 404 {
-			if tracker404.RecordFailure(ip, path) {
-				// IP foi banido
-				logger.Error("IP BANIDO por múltiplos 404s",
-					"ip", ip,
-					"path", path,
-					"user_agent", c.Request.UserAgent())
-			}
-		}
+		// Registra tentativa suspeita em endpoints sensíveis
+		path := c.Request.URL.Path
+		isSensitiveEndpoint := path == "/connect/v1/token" ||
+			path == "/connect/v1/wsteste" ||
+			statusCode == http.StatusUnauthorized ||
+			statusCode == http.StatusForbidden
 
-		// Registrar falhas de autenticação (401)
-		if status == 401 {
-			if tracker401.RecordFailure(ip, path) {
-				// IP foi banido
-				logger.Error("IP BANIDO por múltiplas falhas de autenticação",
-					"ip", ip,
-					"path", path,
-					"user_agent", c.Request.UserAgent())
-			}
+		if isSensitiveEndpoint && (statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden) {
+			f2b.RecordAttempt(ip, path, statusCode)
 		}
 	}
+}
+
+// SimpleFail2BanMiddleware retorna middleware com configurações padrão
+func SimpleFail2BanMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
+	return Fail2BanMiddleware(Fail2BanConfig{
+		MaxAttempts:     5,
+		BanDuration:     30 * time.Minute,
+		WindowDuration:  10 * time.Minute,
+		CleanupInterval: 5 * time.Minute,
+		WhitelistIPs:    []string{"127.0.0.1", "::1"},
+	}, logger)
+}
+
+// StrictFail2BanMiddleware retorna middleware mais restritivo
+func StrictFail2BanMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
+	return Fail2BanMiddleware(Fail2BanConfig{
+		MaxAttempts:     3,               // Apenas 3 tentativas
+		BanDuration:     1 * time.Hour,   // Ban por 1 hora
+		WindowDuration:  5 * time.Minute, // Janela de 5 minutos
+		CleanupInterval: 5 * time.Minute,
+		WhitelistIPs:    []string{"127.0.0.1", "::1"},
+	}, logger)
+}
+
+// UnbanIP remove manualmente o ban de um IP (para administradores)
+func (f *Fail2Ban) UnbanIP(ip string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	attempt, exists := f.ips[ip]
+	if !exists || !attempt.banned {
+		return false
+	}
+
+	attempt.banned = false
+	attempt.attempts = []time.Time{}
+
+	f.logger.Infow("IP desbanido manualmente",
+		"ip", ip,
+	)
+
+	return true
+}
+
+// GetBannedIPs retorna lista de IPs banidos
+func (f *Fail2Ban) GetBannedIPs() []string {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	now := time.Now()
+	banned := []string{}
+
+	for ip, attempt := range f.ips {
+		if attempt.banned && now.Before(attempt.banExpiry) {
+			banned = append(banned, ip)
+		}
+	}
+
+	return banned
 }

@@ -39,6 +39,19 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config, db *database.Database, 
 		webhookGroup.POST("/zenvia/sms", handlers.ZenviaSMSWebhook(cfg, db, logger))
 	}
 
+	// Grupo de rotas /connect/v1/fail2ban - Administração do Fail2Ban
+	fail2banGroup := router.Group("/connect/v1/fail2ban")
+	{
+		// GET /connect/v1/fail2ban/status - Lista IPs banidos
+		fail2banGroup.GET("/status", handlers.Fail2BanGetStatus(logger))
+
+		// POST /connect/v1/fail2ban/unban - Desbanir IP manualmente
+		fail2banGroup.POST("/unban", handlers.Fail2BanUnbanIP(logger))
+
+		// GET /connect/v1/fail2ban/ip/:ip - Estatísticas de IP específico
+		fail2banGroup.GET("/ip/:ip", handlers.Fail2BanGetIPStats(logger))
+	}
+
 	// Swagger documentation
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 }
